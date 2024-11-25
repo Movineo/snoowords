@@ -89,14 +89,20 @@ class RedditService {
       // Store tokens and user data in Supabase
       const { error } = await supabase
         .from('reddit_users')
-        .upsert({
-          username: userData.name,
-          access_token,
-          refresh_token,
-          karma: userData.karma,
-          avatar_url: userData.avatar,
-          last_login: new Date().toISOString()
-        });
+        .upsert(
+          {
+            username: userData.name,
+            access_token,
+            refresh_token,
+            karma: userData.karma,
+            avatar_url: userData.avatar,
+            last_login: new Date().toISOString()
+          },
+          {
+            onConflict: 'username',
+            ignoreDuplicates: false
+          }
+        );
 
       if (error) {
         console.error('Error storing user data:', error);
