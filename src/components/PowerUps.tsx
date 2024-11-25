@@ -87,7 +87,7 @@ export const PowerUps = () => {
     };
 
     return (
-        <div className="grid grid-cols-5 gap-3 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 sm:gap-3">
             {powerUpsList.map((powerUp) => {
                 const Icon = powerUp.icon;
                 const isActive = powerUps[powerUp.id];
@@ -100,17 +100,22 @@ export const PowerUps = () => {
                         onClick={() => handlePowerUp(powerUp)}
                         disabled={isActive || !canAfford || !isAuthenticated}
                         className={`
-                            relative p-3 rounded-lg transition-all transform hover:scale-105
+                            relative p-2 sm:p-3 rounded-lg transition-all transform 
+                            hover:scale-105 active:scale-95 
                             ${isActive ? 'bg-gray-700 cursor-not-allowed' : 
                               !isAuthenticated ? 'bg-gray-800 cursor-not-allowed' :
                               canAfford ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-800 cursor-not-allowed'}
                         `}
                         title={powerUp.description}
                     >
-                        <Icon className={`w-6 h-6 ${powerUp.color} mx-auto mb-1 ${!canAfford && 'opacity-50'}`} />
-                        <div className="text-xs font-semibold text-center mb-1">{powerUp.name}</div>
-                        <div className={`text-xs text-center ${canAfford ? 'text-green-400' : 'text-red-400'}`}>
-                            {powerUp.karmaRequired} karma
+                        <div className="flex flex-col items-center">
+                            <Icon className={`w-5 h-5 sm:w-6 sm:h-6 ${powerUp.color} ${!canAfford && 'opacity-50'}`} />
+                            <div className="text-xs sm:text-sm font-semibold mt-1 text-center line-clamp-1">
+                                {powerUp.name}
+                            </div>
+                            <div className={`text-xs mt-1 ${canAfford ? 'text-green-400' : 'text-red-400'}`}>
+                                {powerUp.karmaRequired}k
+                            </div>
                         </div>
                         {isActive && (
                             <div className="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center">

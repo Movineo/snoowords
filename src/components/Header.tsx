@@ -1,41 +1,52 @@
 import React from 'react';
-import { RedditLoginButton } from './RedditLoginButton';
 import { useStore } from '../store/gameStore';
+import { Award, User } from 'react-feather';
 
 interface HeaderProps {
-    onShowRules?: () => void;
+  onLoginClick: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onShowRules }) => {
-    const { score, karma } = useStore();
+const Header: React.FC<HeaderProps> = ({ onLoginClick }) => {
+  const { redditUser } = useStore();
+  const { name, karma, isAuthenticated, avatar, trophies } = redditUser;
 
-    return (
-        <header className="bg-gray-800 shadow-lg">
-            <div className="container mx-auto px-4 py-4">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-4">
-                        <h1 className="text-2xl font-bold text-orange-500">SnooWords</h1>
-                        <button
-                            onClick={onShowRules}
-                            className="text-sm text-gray-300 hover:text-white transition-colors"
-                        >
-                            Rules
-                        </button>
-                    </div>
-
-                    <div className="flex items-center space-x-6">
-                        <div className="flex items-center space-x-2">
-                            <span className="text-sm text-gray-300">Score:</span>
-                            <span className="text-lg font-bold">{score}</span>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                            <span className="text-sm text-gray-300">Karma:</span>
-                            <span className="text-lg font-bold text-orange-500">{karma}</span>
-                        </div>
-                        <RedditLoginButton />
-                    </div>
-                </div>
+  return (
+    <header className="w-full bg-gray-800 p-4 flex items-center justify-between">
+      <div className="flex items-center space-x-2">
+        <h1 className="text-2xl font-bold text-white">SnooWords</h1>
+      </div>
+      
+      <div className="flex items-center space-x-4">
+        {isAuthenticated ? (
+          <>
+            <div className="flex items-center space-x-2">
+              <Award className="w-5 h-5 text-yellow-400" />
+              <span className="text-white">{trophies}</span>
             </div>
-        </header>
-    );
+            <div className="flex items-center space-x-2">
+              <img 
+                src={avatar || '/default-avatar.png'} 
+                alt={`${name}'s avatar`}
+                className="w-8 h-8 rounded-full"
+              />
+              <div className="flex flex-col">
+                <span className="text-white font-medium">{name}</span>
+                <span className="text-gray-400 text-sm">{karma} karma</span>
+              </div>
+            </div>
+          </>
+        ) : (
+          <button
+            onClick={onLoginClick}
+            className="flex items-center space-x-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+          >
+            <User className="w-5 h-5" />
+            <span>Login with Reddit</span>
+          </button>
+        )}
+      </div>
+    </header>
+  );
 };
+
+export default Header;

@@ -1,44 +1,48 @@
-import React, { useEffect } from 'react';
-import { Timer, TrendingUp } from 'lucide-react';
-import { LettersGrid } from './LettersGrid';
-import { WordInput } from './WordInput';
-import { WordsList } from './WordsList';
-import { DailyTheme } from './DailyTheme';
-import { PowerUps } from './PowerUps';
+import React from 'react';
+import { Clock, Star, Book, ScrollText } from 'lucide-react';
 import { useStore } from '../store/gameStore';
+import { PowerUps } from './PowerUps';
+import { WordInput } from './WordInput';
 
 export const GameBoard: React.FC = () => {
-  const { timeLeft, letters, words, tick, gameMode } = useStore();
+  const { letters, selectedLetters, timeLeft, selectLetter } = useStore();
 
-  useEffect(() => {
-    const timer = setInterval(tick, 1000);
-    return () => clearInterval(timer);
-  }, [tick]);
+  const handleLetterClick = (index: number) => {
+    selectLetter(index);
+  };
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <Timer className="w-6 h-6" />
-            <span className="text-2xl font-bold">{timeLeft}s</span>
-          </div>
-          {gameMode && (
-            <div className="bg-purple-600/20 px-4 py-1 rounded-full">
-              <span className="text-sm font-semibold">{gameMode.name}</span>
-            </div>
-          )}
-        </div>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <TrendingUp className="w-5 h-5 text-orange-400" />
-          <span className="font-bold">{words.reduce((sum, w) => sum + w.points, 0)} karma</span>
+          <Clock className="w-5 h-5 text-purple-400" />
+          <span className="text-lg font-medium">{timeLeft}s</span>
         </div>
+        <PowerUps />
       </div>
-      <DailyTheme />
-      <PowerUps />
-      <LettersGrid letters={letters} />
+
+      <div className="grid grid-cols-4 gap-3 sm:gap-4">
+        {letters.map((letter, index) => (
+          <button
+            key={index}
+            onClick={() => handleLetterClick(index)}
+            disabled={selectedLetters.includes(index)}
+            className={`
+              aspect-square flex items-center justify-center text-2xl sm:text-3xl font-bold rounded-lg
+              transition-all transform hover:scale-105 active:scale-95
+              ${
+                selectedLetters.includes(index)
+                  ? 'bg-purple-600/50 cursor-not-allowed'
+                  : 'bg-white/10 hover:bg-white/20'
+              }
+            `}
+          >
+            {letter}
+          </button>
+        ))}
+      </div>
+
       <WordInput />
-      <WordsList words={words} />
     </div>
   );
 };

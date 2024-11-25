@@ -1,30 +1,51 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { useStore } from '../store/gameStore';
+import { X } from 'react-feather';
 
 export const WordInput: React.FC = () => {
-  const { currentWord, error, setCurrentWord, submitWord } = useStore();
+  const { selectedLetters, letters } = useStore();
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.value = selectedLetters
+        .map(index => letters[index])
+        .join('');
+    }
+  }, [selectedLetters, letters]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    useStore.getState().submitWord();
+  };
+
+  const handleClear = () => {
+    useStore.getState().clearSelection();
+    if (inputRef.current) {
+      inputRef.current.value = '';
+    }
+  };
 
   return (
-    <div className="space-y-2 mb-8">
-      <div className="flex gap-2">
+    <form onSubmit={handleSubmit} className="flex-1">
+      <div className="relative">
         <input
+          ref={inputRef}
           type="text"
-          value={currentWord}
-          onChange={(e) => setCurrentWord(e.target.value)}
-          className="flex-1 p-2 rounded bg-white/20 border border-purple-300 text-white placeholder-purple-200"
-          placeholder="Type your word..."
+          readOnly
+          placeholder="Select letters to form a word..."
+          className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-lg placeholder:text-white/30"
         />
-        <button
-          onClick={() => submitWord()}
-          disabled={currentWord.length < 3}
-          className="bg-purple-600 hover:bg-purple-700 px-6 py-2 rounded font-bold disabled:opacity-50 transition-colors"
-        >
-          Submit
-        </button>
+        {selectedLetters.length > 0 && (
+          <button
+            type="button"
+            onClick={handleClear}
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-white/10 rounded-full transition-colors"
+          >
+            <X className="w-5 h-5 text-white/50" />
+          </button>
+        )}
       </div>
-      {error && (
-        <p className="text-red-400 text-sm">{error}</p>
-      )}
-    </div>
+    </form>
   );
 };

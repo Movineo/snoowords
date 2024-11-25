@@ -9,6 +9,20 @@ import { isThemeRelated } from '../utils/wordUtils';
 
 type GameStatus = 'idle' | 'playing' | 'paused' | 'ended';
 
+interface RedditUser {
+  name: string | null;
+  karma: number;
+  isAuthenticated: boolean;
+  avatar: string | null;
+  trophies: number;
+  achievements: {
+    [key: string]: {
+      unlocked: boolean;
+      progress: number;
+    }
+  };
+}
+
 interface GameState {
   playerName: string;
   score: number;
@@ -17,6 +31,7 @@ interface GameState {
   karma: number;
   words: Word[];
   letters: string[];
+  selectedLetters: number[];
   timeLeft: number;
   currentWord: string;
   error: string | null;
@@ -31,17 +46,7 @@ interface GameState {
     awardsMultiplier: boolean;
     redditGold: boolean;
   };
-  redditUser: {
-    name: string | null;
-    karma: number;
-    isAuthenticated: boolean;
-    achievements: {
-      [key: string]: {
-        unlocked: boolean;
-        progress: number;
-      }
-    };
-  };
+  redditUser: RedditUser;
   achievements: {
     id: string;
     name: string;
@@ -50,13 +55,13 @@ interface GameState {
     unlocked: boolean;
     progress: number;
   }[];
-  currentChallenge: Challenge | null;
+  status: GameStatus;
+  showRules: boolean;
   dailyTheme: string;
   showAchievements: boolean;
-  showRules: boolean;
-  gameStatus: GameStatus;
   timeRemaining: number;
   multiplier: number;
+  currentChallenge: Challenge | null;
 }
 
 interface GameActions {
@@ -78,6 +83,8 @@ interface GameActions {
   toggleRules: () => void;
   setRedditUser: (user: GameState['redditUser']) => void;
   updateAchievementProgress: (achievementId: string, progress: number) => void;
+  selectLetter: (index: number) => void;
+  clearSelection: () => void;
 }
 
 const INITIAL_ACHIEVEMENTS = [
@@ -125,47 +132,49 @@ const DAILY_THEMES = [
   'Books',
 ];
 
+const INITIAL_STATE: GameState = {
+  playerName: '',
+  score: 0,
+  streak: 0,
+  longestStreak: 0,
+  karma: 0,
+  words: [],
+  letters: generateLetters(),
+  selectedLetters: [],
+  timeLeft: 60,
+  currentWord: '',
+  error: null,
+  gameMode: null,
+  powerUps: {
+    timeAward: false,
+    doubleKarma: false,
+    karmaBoost: false,
+    awardsMultiplier: false,
+    redditGold: false
+  },
+  redditUser: {
+    name: null,
+    karma: 0,
+    isAuthenticated: false,
+    avatar: null,
+    trophies: 0,
+    achievements: {}
+  },
+  achievements: INITIAL_ACHIEVEMENTS,
+  status: 'idle',
+  showRules: false,
+  dailyTheme: DAILY_THEMES[Math.floor(Math.random() * DAILY_THEMES.length)],
+  showAchievements: false,
+  timeRemaining: 60,
+  multiplier: 1,
+  currentChallenge: null,
+};
+
 export const useStore = create<GameState & GameActions>()(
   devtools(
     (set, get) => ({
       // Initial state
-      playerName: '',
-      score: 0,
-      streak: 0,
-      longestStreak: 0,
-      karma: 0,
-      words: [],
-      letters: generateLetters(),
-      timeLeft: 60,
-      currentWord: '',
-      error: null,
-      gameMode: null,
-      powerUps: {
-        timeAward: false,
-        doubleKarma: false,
-        karmaBoost: false,
-        awardsMultiplier: false,
-        redditGold: false,
-      },
-      redditUser: {
-        isAuthenticated: false,
-        name: null,
-        karma: 0,
-        achievements: {
-          first_post: { unlocked: false, progress: 0 },
-          karma_collector: { unlocked: false, progress: 0 },
-          award_giver: { unlocked: false, progress: 0 },
-          community_leader: { unlocked: false, progress: 0 },
-        },
-      },
-      achievements: INITIAL_ACHIEVEMENTS,
-      currentChallenge: null,
-      dailyTheme: DAILY_THEMES[Math.floor(Math.random() * DAILY_THEMES.length)],
-      showAchievements: false,
-      showRules: false,
-      gameStatus: 'idle',
-      timeRemaining: 60,
-      multiplier: 1,
+      ...INITIAL_STATE,
 
       // Actions
       setPlayerName: (name: string) => set({ playerName: name }),
@@ -231,7 +240,7 @@ export const useStore = create<GameState & GameActions>()(
       startGame: () => {
         const state = get();
         set({
-          gameStatus: 'playing',
+          status: 'playing',
           timeLeft: 60,
           letters: generateLetters(),
           words: [],
@@ -252,7 +261,7 @@ export const useStore = create<GameState & GameActions>()(
         });
       },
 
-      pauseGame: () => set({ gameStatus: 'paused' } as Partial<GameState>),
+      pauseGame: () => set({ status: 'paused' } as Partial<GameState>),
       endGame: () => {
         const state = get();
         const { score, words, gameMode, dailyTheme } = state;
@@ -274,7 +283,7 @@ export const useStore = create<GameState & GameActions>()(
 
         // Update game state
         set({
-          gameStatus: 'ended',
+          status: 'ended',
           timeLeft: 0,
           currentWord: '',
         } as Partial<GameState>);
@@ -294,16 +303,17 @@ export const useStore = create<GameState & GameActions>()(
           timeLeft: 60,
           currentWord: '',
           error: null,
-          gameStatus: 'idle',
+          status: 'idle',
           timeRemaining: 60,
           multiplier: 1,
+          selectedLetters: [],
         } as Partial<GameState>),
 
       tick: () => {
         const state = get();
-        if (state.timeLeft > 0 && state.gameStatus === 'playing') {
+        if (state.timeLeft > 0 && state.status === 'playing') {
           set({ timeLeft: state.timeLeft - 1 } as Partial<GameState>);
-        } else if (state.timeLeft === 0 && state.gameStatus === 'playing') {
+        } else if (state.timeLeft === 0 && state.status === 'playing') {
           get().endGame();
         }
       },
@@ -363,6 +373,7 @@ export const useStore = create<GameState & GameActions>()(
           error: null,
           score: state.score + points,
           streak: state.streak + 1,
+          selectedLetters: [],
         } as Partial<GameState>);
       },
 
@@ -387,6 +398,18 @@ export const useStore = create<GameState & GameActions>()(
             },
           },
         } as Partial<GameState>)),
+
+      selectLetter: (index: number) => {
+        const { selectedLetters, letters } = get();
+        if (!selectedLetters.includes(index)) {
+          set({ selectedLetters: [...selectedLetters, index] });
+          set({ currentWord: selectedLetters.map(i => letters[i]).join('') });
+        }
+      },
+
+      clearSelection: () => {
+        set({ selectedLetters: [], currentWord: '' });
+      },
     })
   )
 );
