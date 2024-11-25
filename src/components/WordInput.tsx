@@ -8,13 +8,6 @@ export const WordInput: React.FC = () => {
   const [showError, setShowError] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Focus input when component mounts
-  useEffect(() => {
-    if (inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, []);
-
   // Update input value when letters are selected
   useEffect(() => {
     const word = selectedLetters.map(index => letters[index]).join('');
@@ -66,10 +59,11 @@ export const WordInput: React.FC = () => {
         <input
           ref={inputRef}
           type="text"
+          inputMode="text"
           value={inputValue}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
-          placeholder="Type or select letters..."
+          placeholder="Type or tap letters..."
           className={`
             w-full px-4 py-3 bg-white/10 border-2 rounded-lg
             placeholder-gray-400 text-white text-lg font-medium
@@ -93,7 +87,7 @@ export const WordInput: React.FC = () => {
               setInputValue('');
               setShowError(false);
             }}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors z-50"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors z-50 p-2"
           >
             <X className="w-5 h-5" />
           </button>
@@ -104,6 +98,23 @@ export const WordInput: React.FC = () => {
           Word must be at least 3 letters long
         </p>
       )}
+      <div className="flex justify-end mt-2">
+        <button
+          type="submit"
+          disabled={inputValue.length < 3}
+          className={`
+            px-4 py-2 rounded-lg font-medium
+            ${
+              inputValue.length >= 3
+                ? 'bg-purple-600 hover:bg-purple-700 text-white'
+                : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+            }
+            transition-colors
+          `}
+        >
+          Submit
+        </button>
+      </div>
     </form>
   );
 };

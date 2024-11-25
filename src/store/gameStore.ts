@@ -2,10 +2,10 @@ import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import { showAchievementToast } from '../utils/notifications';
 import { Word, AchievementType, Challenge } from '../types';
-import { submitScore } from '../services/supabase';
+import { supabase } from '../services/supabase';
 import { gameService } from '../services/gameService';
+import { themeService } from '../services/themeService'; // Import themeService
 import { generateLetters } from '../utils/gameUtils';
-import { isThemeRelated } from '../utils/wordUtils';
 
 type GameStatus = 'idle' | 'playing' | 'paused' | 'ended';
 
@@ -253,12 +253,21 @@ export const useStore = create<GameState & GameActions>()(
           gameStartTime: new Date()
         } as Partial<GameState>);
 
-        // Load daily challenge
-        gameService.getDailyChallenge().then(challenge => {
-          if (challenge) {
+        // Load daily theme
+        themeService.getDailyTheme().then(theme => {
+          if (theme) {
             set({
-              dailyTheme: challenge.theme || 'technology',
-              currentChallenge: challenge,
+              dailyTheme: theme.theme,
+              currentChallenge: {
+                id: theme.id,
+                title: 'Daily Theme Challenge',
+                description: theme.description,
+                theme: theme.theme,
+                targetScore: 100,
+                participants: 0,
+                start_date: theme.created_at,
+                end_date: theme.expires_at
+              }
             } as Partial<GameState>);
           }
         });
@@ -278,19 +287,28 @@ export const useStore = create<GameState & GameActions>()(
           return playerName || 'Anonymous';
         };
 
-        // Save score to leaderboard with guaranteed string name
-        const playerData: LeaderboardEntry = {
-          player: getPlayerName(),
-          score,
-          isRedditUser: redditUser.isAuthenticated,
-          words: words.map(w => w.word),
-          timestamp: new Date().toISOString()
+        // Submit score to Supabase
+        const submitGameScore = async () => {
+          try {
+            const { error } = await supabase
+              .from('leaderboard')
+              .insert([{
+                player_name: getPlayerName(),
+                score,
+                is_reddit_user: redditUser.isAuthenticated,
+                words: words.map(w => w.word)
+              }]);
+
+            if (error) throw error;
+          } catch (err) {
+            console.error('Error submitting score:', err);
+          }
         };
 
-        // Save to local storage for persistence
-        const savedScores = JSON.parse(localStorage.getItem('gameScores') || '[]') as LeaderboardEntry[];
-        savedScores.push(playerData);
-        localStorage.setItem('gameScores', JSON.stringify(savedScores));
+        // Submit score if it's greater than 0
+        if (score > 0) {
+          submitGameScore();
+        }
 
         set({ 
           status: 'ended',
@@ -324,7 +342,7 @@ export const useStore = create<GameState & GameActions>()(
 
       submitWord: () => {
         const state = get();
-        const { currentWord, words, dailyTheme, streak, score, gameMode, redditUser, playerName, longestStreak, letters } = state;
+        const { currentWord, words, streak, score, gameMode, redditUser, playerName, longestStreak, letters } = state;
         const word = currentWord.toUpperCase();
 
         // Basic validation
@@ -344,7 +362,7 @@ export const useStore = create<GameState & GameActions>()(
           return acc;
         }, {} as Record<string, number>);
 
-        // Allow using the same letter multiple times
+        // Check if word can be made from available letters
         const lettersInWord = word.split('');
         const isValidWord = lettersInWord.every(letter => 
           letterCounts[letter] && letterCounts[letter] > 0
@@ -355,50 +373,53 @@ export const useStore = create<GameState & GameActions>()(
           return;
         }
 
-        // Calculate points
+        // Calculate base points
         let points = word.length;
 
-        // Theme bonus (2x points for theme-related words)
-        if (dailyTheme && isThemeRelated(word, dailyTheme)) {
-          points *= 2;
-          showAchievementToast(`Theme Bonus! 🌟 "${word}" matches today's theme "${dailyTheme}"!`);
-        }
+        // Check for theme bonus
+        themeService.checkWordBonus(word).then(multiplier => {
+          // Apply theme bonus
+          points *= multiplier;
+          if (multiplier > 1) {
+            showAchievementToast(`Theme Bonus! 🌟 "${word}" matches today's theme!`);
+          }
 
-        // Streak bonus
-        if (streak > 0) {
-          points = Math.floor(points * (1 + streak * 0.1));
-        }
+          // Streak bonus
+          if (streak > 0) {
+            points = Math.floor(points * (1 + streak * 0.1));
+          }
 
-        // Game mode multiplier
-        if (gameMode?.multiplier) {
-          points = Math.floor(points * gameMode.multiplier);
-        }
+          // Game mode multiplier
+          if (gameMode?.multiplier) {
+            points = Math.floor(points * gameMode.multiplier);
+          }
 
-        // Update longest streak
-        const newStreak = streak + 1;
-        const newLongestStreak = Math.max(longestStreak, newStreak);
+          // Update longest streak
+          const newStreak = streak + 1;
+          const newLongestStreak = Math.max(longestStreak, newStreak);
 
-        const newWord: Word = {
-          word: word,
-          points,
-          player: playerName || 'Anonymous',
-        };
+          const newWord: Word = {
+            word: word,
+            points,
+            player: playerName || 'Anonymous',
+          };
 
-        // Update game state
-        set({
-          words: [...words, newWord],
-          currentWord: '',
-          error: null,
-          score: score + points,
-          streak: newStreak,
-          longestStreak: newLongestStreak,
-          selectedLetters: [],
-        } as Partial<GameState>);
+          // Update game state
+          set({
+            words: [...words, newWord],
+            currentWord: '',
+            error: null,
+            score: score + points,
+            streak: newStreak,
+            longestStreak: newLongestStreak,
+            selectedLetters: [],
+          } as Partial<GameState>);
 
-        // Update karma for authenticated users
-        if (redditUser.isAuthenticated) {
-          get().updateKarma(points);
-        }
+          // Update karma for authenticated users
+          if (redditUser.isAuthenticated) {
+            get().updateKarma(points);
+          }
+        });
       },
 
       toggleRules: () =>
@@ -446,11 +467,13 @@ export const useStore = create<GameState & GameActions>()(
       },
 
       resetGame: () => {
+        const currentState = get();
         set({
           ...INITIAL_STATE,
           letters: generateLetters(),
-          redditUser: get().redditUser, // Preserve Reddit user state
-          dailyTheme: DAILY_THEMES[Math.floor(Math.random() * DAILY_THEMES.length)]
+          redditUser: currentState.redditUser, // Preserve Reddit user state
+          dailyTheme: currentState.dailyTheme, // Preserve current theme
+          currentChallenge: currentState.currentChallenge // Preserve current challenge
         });
       },
 

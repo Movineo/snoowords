@@ -9,6 +9,32 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
+      leaderboard: {
+        Row: {
+          id: string
+          player_name: string
+          score: number
+          is_reddit_user: boolean
+          words: string[]
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          player_name: string
+          score: number
+          is_reddit_user?: boolean
+          words?: string[]
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          player_name?: string
+          score?: number
+          is_reddit_user?: boolean
+          words?: string[]
+          created_at?: string
+        }
+      }
       players: {
         Row: {
           id: string
@@ -68,48 +94,42 @@ export interface Database {
         Row: {
           id: string
           theme: string
-          bonus_words: string[]
-          start_date: string
-          end_date: string
-          target_score: number
+          letters: string[]
           created_at: string
+          expires_at: string
         }
         Insert: {
           id?: string
           theme: string
-          bonus_words: string[]
-          start_date: string
-          end_date: string
-          target_score: number
+          letters: string[]
           created_at?: string
+          expires_at: string
         }
         Update: {
           id?: string
           theme?: string
-          bonus_words?: string[]
-          start_date?: string
-          end_date?: string
-          target_score?: number
+          letters?: string[]
           created_at?: string
+          expires_at?: string
         }
       }
       achievements: {
         Row: {
           id: string
           player_id: string
-          achievement_type: string
+          type: string
           unlocked_at: string
         }
         Insert: {
           id?: string
           player_id: string
-          achievement_type: string
+          type: string
           unlocked_at?: string
         }
         Update: {
           id?: string
           player_id?: string
-          achievement_type?: string
+          type?: string
           unlocked_at?: string
         }
       }

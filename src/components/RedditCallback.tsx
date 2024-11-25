@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/gameStore';
 import { redditService } from '../services/redditService';
+import { toast } from 'react-hot-toast';
 
 export const RedditCallback: React.FC = () => {
   const navigate = useNavigate();
@@ -16,12 +17,14 @@ export const RedditCallback: React.FC = () => {
 
       if (error) {
         console.error('Reddit OAuth error:', error);
+        toast.error(`Reddit login failed: ${error}`);
         navigate('/');
         return;
       }
 
       if (!code || !state) {
         console.error('Missing code or state from Reddit');
+        toast.error('Invalid Reddit response');
         navigate('/');
         return;
       }
@@ -46,11 +49,17 @@ export const RedditCallback: React.FC = () => {
                 community_leader: { unlocked: false, progress: 0 },
               }
             });
+            toast.success(`Welcome back, ${userData.name}!`);
+          } else {
+            toast.error('Failed to get user data');
           }
+        } else {
+          toast.error('Reddit login failed');
         }
-        navigate('/');
       } catch (error) {
-        console.error('Failed to handle Reddit callback:', error);
+        console.error('Error during Reddit callback:', error);
+        toast.error('Reddit login failed');
+      } finally {
         navigate('/');
       }
     };
@@ -59,9 +68,10 @@ export const RedditCallback: React.FC = () => {
   }, [navigate, setRedditUser]);
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-900">
-      <div className="text-white text-xl">
-        Logging you in...
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500 mx-auto"></div>
+        <p className="mt-4 text-lg">Logging in with Reddit...</p>
       </div>
     </div>
   );

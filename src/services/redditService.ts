@@ -1,4 +1,5 @@
 import { supabase } from "../config/supabase";
+import { toast } from 'react-hot-toast';
 
 interface RedditAuthResponse {
   access_token: string;
@@ -22,8 +23,13 @@ class RedditService {
   private enableRedditIntegration = import.meta.env.VITE_ENABLE_REDDIT_INTEGRATION === 'true';
 
   public getAuthUrl(): string {
+    if (!this.clientId || !this.clientSecret) {
+      toast.error('Reddit client credentials not configured');
+      return '';
+    }
+
     if (!this.enableRedditIntegration) {
-      console.warn('Reddit integration is disabled');
+      toast.error('Reddit integration is disabled');
       return '';
     }
 
@@ -44,41 +50,57 @@ class RedditService {
 
   public async handleCallback(code: string, state: string): Promise<boolean> {
     if (!this.enableRedditIntegration) {
-      console.warn('Reddit integration is disabled');
+      toast.error('Reddit integration is disabled');
+      return false;
+    }
+
+    if (!this.clientId || !this.clientSecret) {
+      toast.error('Reddit client credentials not configured');
       return false;
     }
 
     const storedState = localStorage.getItem('reddit_auth_state');
+    if (!storedState) {
+      toast.error('No authentication state found');
+      return false;
+    }
+
     if (state !== storedState) {
-      throw new Error('Invalid state parameter');
+      toast.error('Invalid authentication state');
+      return false;
     }
 
     try {
       const tokenResponse = await this.getAccessToken(code);
-      if (!tokenResponse) return false;
+      if (!tokenResponse) {
+        toast.error('Failed to get access token');
+        return false;
+      }
 
       const { access_token, refresh_token } = tokenResponse;
       
       // Get user data before storing tokens
       const userData = await this.fetchUserData(access_token);
-      if (!userData) return false;
+      if (!userData) {
+        toast.error('Failed to fetch user data');
+        return false;
+      }
 
       // Store tokens and user data in Supabase
       const { error } = await supabase
         .from('reddit_users')
-        .upsert([
-          {
-            username: userData.name,
-            access_token,
-            refresh_token,
-            karma: userData.karma,
-            avatar_url: userData.avatar,
-            last_login: new Date().toISOString()
-          }
-        ]);
+        .upsert({
+          username: userData.name,
+          access_token,
+          refresh_token,
+          karma: userData.karma,
+          avatar_url: userData.avatar,
+          last_login: new Date().toISOString()
+        });
 
       if (error) {
         console.error('Error storing user data:', error);
+        toast.error('Failed to store user data');
         return false;
       }
 
@@ -89,16 +111,18 @@ class RedditService {
         avatar: userData.avatar
       }));
 
+      toast.success('Successfully logged in with Reddit!');
       return true;
     } catch (error) {
       console.error('Error during Reddit authentication:', error);
+      toast.error('Authentication failed');
       return false;
     }
   }
 
   private async getAccessToken(code: string): Promise<RedditAuthResponse | null> {
     if (!this.clientId || !this.clientSecret) {
-      console.error('Reddit client credentials not configured');
+      toast.error('Reddit client credentials not configured');
       return null;
     }
 
@@ -109,6 +133,7 @@ class RedditService {
     });
 
     try {
+      console.log('Requesting access token...');
       const response = await fetch('https://www.reddit.com/api/v1/access_token', {
         method: 'POST',
         headers: {
@@ -121,18 +146,23 @@ class RedditService {
       if (!response.ok) {
         const errorData = await response.text();
         console.error('Reddit token error:', errorData);
-        throw new Error('Failed to get access token');
+        toast.error('Failed to get access token');
+        return null;
       }
 
-      return await response.json();
+      const data = await response.json();
+      console.log('Access token received');
+      return data;
     } catch (error) {
       console.error('Error getting access token:', error);
+      toast.error('Failed to get access token');
       return null;
     }
   }
 
   private async fetchUserData(accessToken: string): Promise<RedditUserData | null> {
     try {
+      console.log('Fetching user data...');
       const response = await fetch('https://oauth.reddit.com/api/v1/me', {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -141,10 +171,14 @@ class RedditService {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch user data');
+        const errorData = await response.text();
+        console.error('Reddit user data error:', errorData);
+        toast.error('Failed to fetch user data');
+        return null;
       }
 
       const data = await response.json();
+      console.log('User data received:', data.name);
       return {
         name: data.name,
         karma: data.total_karma || 0,
@@ -153,6 +187,7 @@ class RedditService {
       };
     } catch (error) {
       console.error('Error fetching user data:', error);
+      toast.error('Failed to fetch user data');
       return null;
     }
   }
@@ -165,46 +200,55 @@ class RedditService {
         return JSON.parse(cachedUser);
       }
 
-      const { data: user } = await supabase
+      const { data: user, error } = await supabase
         .from('reddit_users')
-        .select('*')
+        .select('username, karma, avatar_url')
         .single();
+
+      if (error) {
+        console.error('Error fetching user from Supabase:', error);
+        return null;
+      }
 
       if (!user) return null;
 
       // Update cache
-      localStorage.setItem('reddit_user', JSON.stringify({
-        name: user.username,
-        karma: user.karma,
-        avatar: user.avatar_url
-      }));
-
-      return {
+      const userData = {
         name: user.username,
         karma: user.karma,
         avatar: user.avatar_url,
         trophies: 0
       };
+
+      localStorage.setItem('reddit_user', JSON.stringify(userData));
+      return userData;
     } catch (error) {
       console.error('Error getting user data:', error);
       return null;
     }
   }
 
-  public async submitScore(score: number, words: string[], subreddit?: string): Promise<boolean> {
+  public async submitScore(score: number, words: string[]): Promise<boolean> {
     if (!this.enableRedditIntegration) {
-      console.warn('Reddit integration is disabled');
+      toast.error('Reddit integration is disabled');
       return false;
     }
 
     try {
-      const { data: user } = await supabase
+      const { data: user, error } = await supabase
         .from('reddit_users')
         .select('access_token, username')
         .single();
 
+      if (error) {
+        console.error('Error fetching Reddit user:', error);
+        toast.error('Failed to get Reddit user data');
+        return false;
+      }
+
       if (!user?.access_token) {
-        throw new Error('No Reddit access token found');
+        toast.error('Please log in with Reddit first');
+        return false;
       }
 
       // Format the words list nicely
@@ -218,9 +262,7 @@ class RedditService {
         `Play SnooWords at: ${window.location.origin}\n\n` +
         `#SnooWords #WordGame`;
 
-      // If no subreddit is provided, post to user's profile
-      const targetSubreddit = subreddit || `u_${user.username}`;
-
+      // Post to the SnooWords subreddit
       const response = await fetch('https://oauth.reddit.com/api/submit', {
         method: 'POST',
         headers: {
@@ -229,7 +271,7 @@ class RedditService {
           'User-Agent': 'SnooWords/1.0.0'
         },
         body: new URLSearchParams({
-          sr: targetSubreddit,
+          sr: 'SnooWords',  // Your subreddit name
           kind: 'self',
           title,
           text,
@@ -238,26 +280,30 @@ class RedditService {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.text();
         console.error('Reddit API error:', errorData);
-        throw new Error(`Failed to submit to Reddit: ${response.statusText}`);
+        toast.error('Failed to share score to Reddit');
+        return false;
       }
 
       const result = await response.json();
       if (result.json.errors?.length) {
         console.error('Reddit submission errors:', result.json.errors);
-        throw new Error('Failed to submit post: ' + result.json.errors[0][1]);
+        toast.error('Failed to share score: ' + result.json.errors[0][1]);
+        return false;
       }
 
+      toast.success('Score shared to Reddit!');
       return true;
     } catch (error) {
       console.error('Error submitting score to Reddit:', error);
-      throw error;
+      toast.error('Failed to share score');
+      return false;
     }
   }
 
   public isEnabled(): boolean {
-    return this.enableRedditIntegration;
+    return this.enableRedditIntegration && Boolean(this.clientId) && Boolean(this.clientSecret);
   }
 }
 

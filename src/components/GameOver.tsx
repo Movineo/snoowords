@@ -1,8 +1,10 @@
 import React from 'react';
-import { Award, Star, TrendingUp } from 'react-feather';
+import { Award, Star, TrendingUp, Share2 } from 'react-feather';
 import { ShareResults } from './ShareResults';
 import { Word } from '../types';
 import { useStore } from '../store/gameStore';
+import { redditService } from '../services/redditService';
+import { toast } from 'react-hot-toast';
 
 interface GameOverProps {
   words: Word[];
@@ -23,6 +25,20 @@ export const GameOver: React.FC<GameOverProps> = ({
     (longest, word) => (word.word.length > longest.length ? word.word : longest),
     ''
   );
+
+  const handleShare = async () => {
+    if (!redditUser.isAuthenticated) {
+      toast.error('Please log in with Reddit to share your score');
+      return;
+    }
+
+    try {
+      await redditService.submitScore(totalScore, words.map(w => w.word));
+    } catch (error) {
+      console.error('Error sharing score:', error);
+      toast.error('Failed to share score');
+    }
+  };
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -132,6 +148,21 @@ export const GameOver: React.FC<GameOverProps> = ({
           Play Again
         </button>
         {(redditUser.isAuthenticated || playerName) && <ShareResults />}
+        <button
+          onClick={handleShare}
+          disabled={!redditUser.isAuthenticated}
+          className={`
+            flex items-center justify-center gap-2 w-full px-4 py-2 rounded-lg font-medium
+            ${redditUser.isAuthenticated
+              ? 'bg-orange-500 hover:bg-orange-600 text-white'
+              : 'bg-gray-700 text-gray-400 cursor-not-allowed'
+            }
+            transition-colors
+          `}
+        >
+          <Share2 className="w-5 h-5" />
+          {redditUser.isAuthenticated ? 'Share on Reddit' : 'Login to Share'}
+        </button>
       </div>
     </div>
   );

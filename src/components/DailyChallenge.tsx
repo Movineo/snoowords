@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Target, TrendingUp, Trophy } from 'lucide-react';
+import { Target, TrendingUp, Trophy, Calendar } from 'lucide-react';
 import { gameService } from '../services/gameService';
 import { Challenge } from '../types';
+import { format } from 'date-fns';
 
 export const DailyChallenge: React.FC = () => {
   const [challenge, setChallenge] = useState<Challenge | null>(null);
@@ -43,6 +44,13 @@ export const DailyChallenge: React.FC = () => {
         <div className="flex items-center gap-2">
           <div className="bg-white/10 px-3 py-1 rounded-full">
             Theme: {challenge.theme}
+          </div>
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4" />
+            <span>
+              {format(new Date(challenge.start_date), 'MMM d')} -{' '}
+              {format(new Date(challenge.end_date), 'MMM d')}
+            </span>
           </div>
         </div>
         <div className="flex items-center gap-2">

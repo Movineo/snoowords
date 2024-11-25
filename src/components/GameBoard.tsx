@@ -28,36 +28,34 @@ export const GameBoard: React.FC = () => {
 
       {/* Game Area */}
       <div className="flex-1 flex flex-col min-h-0">
-        {/* Letters Grid and Input */}
-        <div className="flex gap-6 mb-6">
-          {/* Letters Grid */}
-          <div className="w-[400px] shrink-0">
-            <div className="grid grid-cols-4 gap-2 aspect-square">
-              {letters.map((letter, index) => (
-                <button
-                  key={index}
-                  onClick={() => handleLetterClick(index)}
-                  className={`
-                    aspect-square flex items-center justify-center
-                    text-2xl sm:text-3xl font-bold rounded-lg
-                    transition-all transform hover:scale-105 active:scale-95
-                    ${
-                      selectedLetters.includes(index)
-                        ? 'bg-purple-600/80 text-white'
-                        : 'bg-white/10 hover:bg-white/20 text-white'
-                    }
-                    shadow-lg backdrop-blur-sm relative z-10
-                  `}
-                >
-                  {letter}
-                </button>
-              ))}
-            </div>
-          </div>
+        {/* Word Input - Moved to top for mobile */}
+        <div className="mb-4 w-full">
+          <WordInput />
+        </div>
 
-          {/* Word Input */}
-          <div className="flex-1 flex items-center">
-            <WordInput />
+        {/* Letters Grid */}
+        <div className="w-full mb-6">
+          <div className="grid grid-cols-4 gap-2 aspect-square max-w-[400px] mx-auto">
+            {letters.map((letter, index) => (
+              <button
+                key={index}
+                onClick={() => handleLetterClick(index)}
+                className={`
+                  aspect-square flex items-center justify-center
+                  text-2xl sm:text-3xl font-bold rounded-lg
+                  transition-all transform hover:scale-105 active:scale-95
+                  ${
+                    selectedLetters.includes(index)
+                      ? 'bg-purple-600/80 text-white'
+                      : 'bg-white/10 hover:bg-white/20 text-white'
+                  }
+                  shadow-lg backdrop-blur-sm relative z-10
+                  touch-manipulation
+                `}
+              >
+                {letter}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -68,7 +66,7 @@ export const GameBoard: React.FC = () => {
             <h3 className="text-lg font-medium">Found Words</h3>
           </div>
           {words.length === 0 ? (
-            <p className="text-gray-400 text-sm">No words found yet. Start typing!</p>
+            <p className="text-gray-400 text-sm">No words found yet. Start typing or tap letters!</p>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {words.map((word, index) => (
