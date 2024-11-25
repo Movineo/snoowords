@@ -1,126 +1,100 @@
 import React, { useEffect, useState } from 'react';
-import { Trophy, Award, Star, TrendingUp, Clock } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
-import { gameService, LeaderboardStats } from '../services/gameService';
-import { supabase } from '../config/supabase';
+import { Trophy, Medal } from 'lucide-react';
+import { useStore } from '../store/gameStore';
+
+interface LeaderboardEntry {
+  player: string;
+  score: number;
+  isRedditUser?: boolean;
+  timestamp?: string;
+}
 
 export const Leaderboard: React.FC = () => {
-  const [stats, setStats] = useState<LeaderboardStats | null>(null);
-  const [activeTab, setActiveTab] = useState<'daily' | 'allTime'>('daily');
+  const { score, playerName, redditUser } = useStore();
+  const [leaderboardData, setLeaderboardData] = useState<LeaderboardEntry[]>([]);
+
+  // Ensure we always have a valid player name
+  const getPlayerName = (): string => {
+    if (redditUser.isAuthenticated && redditUser.name) {
+      return redditUser.name;
+    }
+    return playerName || 'Anonymous';
+  };
 
   useEffect(() => {
-    const loadLeaderboards = async () => {
-      try {
-        const data = await gameService.getLeaderboards();
-        setStats(data);
-      } catch (error) {
-        console.error('Failed to load leaderboards:', error);
-      }
-    };
-
-    loadLeaderboards();
-    // Set up real-time subscription
-    const subscription = supabase
-      .channel('leaderboard_changes')
-      .on('postgres_changes', { 
-        event: '*', 
-        schema: 'public', 
-        table: 'game_sessions' 
-      }, loadLeaderboards)
-      .subscribe();
-
-    return () => {
-      subscription.unsubscribe();
-    };
+    // Load saved scores from localStorage
+    const savedScores = JSON.parse(localStorage.getItem('gameScores') || '[]') as LeaderboardEntry[];
+    setLeaderboardData(savedScores);
   }, []);
 
-  if (!stats) return <div>Loading leaderboards...</div>;
+  // Create current player entry with guaranteed string name
+  const currentPlayerEntry: LeaderboardEntry = {
+    player: getPlayerName(),
+    score,
+    isRedditUser: redditUser.isAuthenticated,
+    timestamp: new Date().toISOString()
+  };
+
+  const allEntries: LeaderboardEntry[] = [
+    currentPlayerEntry,
+    ...leaderboardData,
+    // Add demo entries if leaderboard is empty
+    ...(leaderboardData.length === 0 ? [
+      { player: "RedditPro", score: 120, isRedditUser: true },
+      { player: "WordMaster", score: 110, isRedditUser: true },
+      { player: "Guest123", score: 95 },
+      { player: "WordNinja", score: 85, isRedditUser: true },
+      { player: "CoolGuest", score: 75 }
+    ] : [])
+  ].sort((a, b) => b.score - a.score);
 
   return (
-    <div className="bg-white/10 backdrop-blur-lg rounded-lg p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold flex items-center gap-2">
-          <Trophy className="w-6 h-6 text-yellow-400" />
-          Leaderboard
-        </h2>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setActiveTab('daily')}
-            className={`px-4 py-2 rounded-full flex items-center gap-2 ${
-              activeTab === 'daily'
-                ? 'bg-purple-600 text-white'
-                : 'bg-white/5 hover:bg-white/10'
-            }`}
-          >
-            <Clock className="w-4 h-4" />
-            Daily
-          </button>
-          <button
-            onClick={() => setActiveTab('allTime')}
-            className={`px-4 py-2 rounded-full flex items-center gap-2 ${
-              activeTab === 'allTime'
-                ? 'bg-purple-600 text-white'
-                : 'bg-white/5 hover:bg-white/10'
-            }`}
-          >
-            <TrendingUp className="w-4 h-4" />
-            All Time
-          </button>
-        </div>
+    <div className="bg-gray-800/50 rounded-lg p-4 mt-4">
+      <div className="flex items-center gap-2 mb-4">
+        <Trophy className="w-6 h-6 text-yellow-400" />
+        <h2 className="text-xl font-bold">Leaderboard</h2>
       </div>
 
-      <div className="space-y-3">
-        {activeTab === 'daily'
-          ? stats.dailyLeaders.map((entry, index) => (
-              <div
-                key={entry.reddit_username}
-                className="flex items-center justify-between bg-white/5 p-3 rounded hover:bg-white/10 transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl font-bold text-purple-300">
-                    #{index + 1}
+      <div className="space-y-2">
+        {allEntries.map((entry, index) => (
+          <div
+            key={index}
+            className={`flex items-center justify-between p-3 rounded-lg ${
+              index === 0 ? 'bg-yellow-500/20' :
+              index === 1 ? 'bg-gray-400/20' :
+              index === 2 ? 'bg-orange-700/20' :
+              'bg-white/5'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-lg font-bold w-8">
+                {index + 1}.
+              </span>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">
+                    {entry.player}
                   </span>
-                  <div>
-                    <div className="font-semibold">u/{entry.reddit_username}</div>
-                    <div className="text-sm text-purple-300">
-                      {formatDistanceToNow(new Date(entry.created_at))} ago
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <Star className="w-5 h-5 text-yellow-400" />
-                    <span className="font-bold">{entry.score}</span>
-                  </div>
+                  {entry.isRedditUser && (
+                    <span className="text-xs bg-orange-500/20 text-orange-300 px-2 py-0.5 rounded">
+                      Reddit
+                    </span>
+                  )}
                 </div>
               </div>
-            ))
-          : stats.allTimeLeaders.map((entry, index) => (
-              <div
-                key={entry.reddit_username}
-                className="flex items-center justify-between bg-white/5 p-3 rounded hover:bg-white/10 transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl font-bold text-purple-300">
-                    #{index + 1}
-                  </span>
-                  <div>
-                    <div className="font-semibold">u/{entry.reddit_username}</div>
-                    <div className="text-sm text-purple-300">
-                      {entry.games_played} games played
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="text-right">
-                    <div className="font-bold">{entry.total_score}</div>
-                    <div className="text-sm text-purple-300">
-                      Best: {entry.best_score}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-bold">{entry.score}</span>
+              {index < 3 && (
+                <Medal className={`w-5 h-5 ${
+                  index === 0 ? 'text-yellow-400' :
+                  index === 1 ? 'text-gray-400' :
+                  'text-orange-700'
+                }`} />
+              )}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

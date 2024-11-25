@@ -131,13 +131,7 @@ export const GameOver: React.FC<GameOverProps> = ({
         >
           Play Again
         </button>
-        {(redditUser.isAuthenticated || playerName) && (
-          <ShareResults
-            score={totalScore}
-            words={words}
-            playerName={redditUser.name || playerName}
-          />
-        )}
+        {(redditUser.isAuthenticated || playerName) && <ShareResults />}
       </div>
     </div>
   );

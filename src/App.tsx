@@ -14,31 +14,42 @@ import { Leaderboard } from './components/Leaderboard';
 import { CommunityChallenge } from './components/CommunityChallenge';
 
 function App() {
-  const { status, showRules, words, timeLeft, toggleRules } = useStore();
+  const { status, showRules, words, timeLeft, toggleRules, startGame, tick } = useStore();
   const [playerName, setPlayerName] = useState('');
 
   const handleStartGame = () => {
-    useStore.setState({ status: 'playing' });
+    startGame();
   };
 
   const handlePlayAgain = () => {
     useStore.getState().resetGame();
   };
 
+  // Timer effect
+  useEffect(() => {
+    let timer: number | null = null;
+    
+    if (status === 'playing') {
+      timer = window.setInterval(() => {
+        tick();
+      }, 1000);
+    }
+
+    return () => {
+      if (timer) {
+        clearInterval(timer);
+      }
+    };
+  }, [status, tick]);
+
   // Submit score when game ends
   useEffect(() => {
     const submitScore = async () => {
       if (status === 'idle' && words.length > 0) {
         try {
-          // Only require player name if not logged in with Reddit
           const { redditUser } = useStore.getState();
-          const finalPlayerName = redditUser?.name || playerName;
+          const finalPlayerName = redditUser?.name || playerName || 'Anonymous Player';
           
-          if (!finalPlayerName) {
-            toast.error('Please enter your name to submit score');
-            return;
-          }
-
           await gameService.submitScore(finalPlayerName, {
             score: words.reduce((sum, word) => sum + word.points, 0),
             words: words,
