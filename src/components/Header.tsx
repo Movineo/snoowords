@@ -3,10 +3,11 @@ import { useStore } from '../store/gameStore';
 import { Award, User } from 'react-feather';
 
 interface HeaderProps {
-  onLoginClick: () => void;
+  onLoginClick?: () => void;
+  onShowRules?: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ onLoginClick }) => {
+export const Header: React.FC<HeaderProps> = ({ onLoginClick, onShowRules }) => {
   const { redditUser } = useStore();
   const { name, karma, isAuthenticated, avatar, trophies } = redditUser;
 
@@ -14,6 +15,14 @@ const Header: React.FC<HeaderProps> = ({ onLoginClick }) => {
     <header className="w-full bg-gray-800 p-4 flex items-center justify-between">
       <div className="flex items-center space-x-2">
         <h1 className="text-2xl font-bold text-white">SnooWords</h1>
+        {onShowRules && (
+          <button
+            onClick={onShowRules}
+            className="text-sm px-3 py-1 bg-white/10 hover:bg-white/20 rounded-full transition-colors"
+          >
+            Rules
+          </button>
+        )}
       </div>
       
       <div className="flex items-center space-x-4">
@@ -48,5 +57,3 @@ const Header: React.FC<HeaderProps> = ({ onLoginClick }) => {
     </header>
   );
 };
-
-export default Header;
