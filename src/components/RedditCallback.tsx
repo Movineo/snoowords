@@ -17,14 +17,20 @@ export const RedditCallback: React.FC = () => {
 
       if (error) {
         console.error('Reddit OAuth error:', error);
-        toast.error(`Reddit login failed: ${error}`);
+        toast(`Reddit login failed: ${error}`, {
+          icon: '⚠️',
+          duration: 3000
+        });
         navigate('/');
         return;
       }
 
       if (!code || !state) {
         console.error('Missing code or state from Reddit');
-        toast.error('Invalid Reddit response');
+        toast('Invalid Reddit response', {
+          icon: '⚠️',
+          duration: 3000
+        });
         navigate('/');
         return;
       }
@@ -49,16 +55,28 @@ export const RedditCallback: React.FC = () => {
                 community_leader: { unlocked: false, progress: 0 },
               }
             });
-            toast.success(`Welcome back, ${userData.name}!`);
+            toast(`Welcome back, ${userData.name}!`, {
+              icon: '👋',
+              duration: 3000
+            });
           } else {
-            toast.error('Failed to get user data');
+            toast('Failed to get user data', {
+              icon: '⚠️',
+              duration: 3000
+            });
           }
         } else {
-          toast.error('Reddit login failed');
+          toast('Reddit login failed', {
+            icon: '⚠️',
+            duration: 3000
+          });
         }
       } catch (error) {
         console.error('Error during Reddit callback:', error);
-        toast.error('Reddit login failed');
+        toast('Reddit login failed', {
+          icon: '⚠️',
+          duration: 3000
+        });
       } finally {
         navigate('/');
       }

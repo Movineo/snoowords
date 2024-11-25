@@ -24,12 +24,18 @@ class RedditService {
 
   public getAuthUrl(): string {
     if (!this.clientId || !this.clientSecret) {
-      toast.error('Reddit client credentials not configured');
+      toast('Reddit client credentials not configured', {
+        icon: '⚠️',
+        duration: 3000
+      });
       return '';
     }
 
     if (!this.enableRedditIntegration) {
-      toast.error('Reddit integration is disabled');
+      toast('Reddit integration is disabled', {
+        icon: '⚠️',
+        duration: 3000
+      });
       return '';
     }
 
@@ -50,30 +56,45 @@ class RedditService {
 
   public async handleCallback(code: string, state: string): Promise<boolean> {
     if (!this.enableRedditIntegration) {
-      toast.error('Reddit integration is disabled');
+      toast('Reddit integration is disabled', {
+        icon: '⚠️',
+        duration: 3000
+      });
       return false;
     }
 
     if (!this.clientId || !this.clientSecret) {
-      toast.error('Reddit client credentials not configured');
+      toast('Reddit client credentials not configured', {
+        icon: '⚠️',
+        duration: 3000
+      });
       return false;
     }
 
     const storedState = localStorage.getItem('reddit_auth_state');
     if (!storedState) {
-      toast.error('No authentication state found');
+      toast('No authentication state found', {
+        icon: '⚠️',
+        duration: 3000
+      });
       return false;
     }
 
     if (state !== storedState) {
-      toast.error('Invalid authentication state');
+      toast('Invalid authentication state', {
+        icon: '⚠️',
+        duration: 3000
+      });
       return false;
     }
 
     try {
       const tokenResponse = await this.getAccessToken(code);
       if (!tokenResponse) {
-        toast.error('Failed to get access token');
+        toast('Failed to get access token', {
+          icon: '⚠️',
+          duration: 3000
+        });
         return false;
       }
 
@@ -82,7 +103,10 @@ class RedditService {
       // Get user data before storing tokens
       const userData = await this.fetchUserData(access_token);
       if (!userData) {
-        toast.error('Failed to fetch user data');
+        toast('Failed to fetch user data', {
+          icon: '⚠️',
+          duration: 3000
+        });
         return false;
       }
 
@@ -106,7 +130,10 @@ class RedditService {
 
       if (error) {
         console.error('Error storing user data:', error);
-        toast.error('Failed to store user data');
+        toast('Failed to store user data', {
+          icon: '⚠️',
+          duration: 3000
+        });
         return false;
       }
 
@@ -117,18 +144,27 @@ class RedditService {
         avatar: userData.avatar
       }));
 
-      toast.success('Successfully logged in with Reddit!');
+      toast('Successfully logged in with Reddit!', {
+        icon: '🎉',
+        duration: 3000
+      });
       return true;
     } catch (error) {
       console.error('Error during Reddit authentication:', error);
-      toast.error('Authentication failed');
+      toast('Authentication failed', {
+        icon: '⚠️',
+        duration: 3000
+      });
       return false;
     }
   }
 
   private async getAccessToken(code: string): Promise<RedditAuthResponse | null> {
     if (!this.clientId || !this.clientSecret) {
-      toast.error('Reddit client credentials not configured');
+      toast('Reddit client credentials not configured', {
+        icon: '⚠️',
+        duration: 3000
+      });
       return null;
     }
 
@@ -152,7 +188,10 @@ class RedditService {
       if (!response.ok) {
         const errorData = await response.text();
         console.error('Reddit token error:', errorData);
-        toast.error('Failed to get access token');
+        toast('Failed to get access token', {
+          icon: '⚠️',
+          duration: 3000
+        });
         return null;
       }
 
@@ -161,7 +200,10 @@ class RedditService {
       return data;
     } catch (error) {
       console.error('Error getting access token:', error);
-      toast.error('Failed to get access token');
+      toast('Failed to get access token', {
+        icon: '⚠️',
+        duration: 3000
+      });
       return null;
     }
   }
@@ -179,7 +221,10 @@ class RedditService {
       if (!response.ok) {
         const errorData = await response.text();
         console.error('Reddit user data error:', errorData);
-        toast.error('Failed to fetch user data');
+        toast('Failed to fetch user data', {
+          icon: '⚠️',
+          duration: 3000
+        });
         return null;
       }
 
@@ -193,7 +238,10 @@ class RedditService {
       };
     } catch (error) {
       console.error('Error fetching user data:', error);
-      toast.error('Failed to fetch user data');
+      toast('Failed to fetch user data', {
+        icon: '⚠️',
+        duration: 3000
+      });
       return null;
     }
   }
@@ -213,6 +261,10 @@ class RedditService {
 
       if (error) {
         console.error('Error fetching user from Supabase:', error);
+        toast('Failed to fetch user data', {
+          icon: '⚠️',
+          duration: 3000
+        });
         return null;
       }
 
@@ -230,13 +282,20 @@ class RedditService {
       return userData;
     } catch (error) {
       console.error('Error getting user data:', error);
+      toast('Failed to fetch user data', {
+        icon: '⚠️',
+        duration: 3000
+      });
       return null;
     }
   }
 
   public async submitScore(score: number, words: string[]): Promise<boolean> {
     if (!this.enableRedditIntegration) {
-      toast.error('Reddit integration is disabled');
+      toast('Reddit integration is disabled', {
+        icon: '⚠️',
+        duration: 3000
+      });
       return false;
     }
 
@@ -248,12 +307,18 @@ class RedditService {
 
       if (error) {
         console.error('Error fetching Reddit user:', error);
-        toast.error('Failed to get Reddit user data');
+        toast('Failed to get Reddit user data', {
+          icon: '⚠️',
+          duration: 3000
+        });
         return false;
       }
 
       if (!user?.access_token) {
-        toast.error('Please log in with Reddit first');
+        toast('Please log in with Reddit first', {
+          icon: '⚠️',
+          duration: 3000
+        });
         return false;
       }
 
@@ -288,22 +353,34 @@ class RedditService {
       if (!response.ok) {
         const errorData = await response.text();
         console.error('Reddit API error:', errorData);
-        toast.error('Failed to share score to Reddit');
+        toast('Failed to share score to Reddit', {
+          icon: '⚠️',
+          duration: 3000
+        });
         return false;
       }
 
       const result = await response.json();
       if (result.json.errors?.length) {
         console.error('Reddit submission errors:', result.json.errors);
-        toast.error('Failed to share score: ' + result.json.errors[0][1]);
+        toast('Failed to share score: ' + result.json.errors[0][1], {
+          icon: '⚠️',
+          duration: 3000
+        });
         return false;
       }
 
-      toast.success('Score shared to Reddit!');
+      toast('Score shared to Reddit!', {
+        icon: '🎉',
+        duration: 3000
+      });
       return true;
     } catch (error) {
       console.error('Error submitting score to Reddit:', error);
-      toast.error('Failed to share score');
+      toast('Failed to share score', {
+        icon: '⚠️',
+        duration: 3000
+      });
       return false;
     }
   }

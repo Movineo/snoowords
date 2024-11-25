@@ -93,6 +93,7 @@ interface GameActions {
   updateAchievementProgress: (achievementId: string, progress: number) => void;
   selectLetter: (index: number) => void;
   clearSelection: () => void;
+  gameOver: () => void;
 }
 
 const INITIAL_ACHIEVEMENTS = [
@@ -485,6 +486,28 @@ export const useStore = create<GameState & GameActions>()(
           if (newTime === 0) {
             get().endGame();
           }
+        }
+      },
+
+      gameOver: () => {
+        const state = get();
+        const { score, words, redditUser, currentChallenge } = state;
+
+        // Submit score to Reddit if authenticated
+        if (redditUser.isAuthenticated) {
+          // redditService.submitScore(score, words.map(w => w.word));
+          
+          // Submit score to current challenge if it exists
+          if (currentChallenge) {
+            // challengeService.submitScore(currentChallenge.id, redditUser.name, score);
+          }
+        }
+
+        set({ status: 'ended' } as Partial<GameState>);
+
+        // Show achievement toast for high scores
+        if (score > 100) {
+          showAchievementToast('High Score! 🏆');
         }
       },
     })
