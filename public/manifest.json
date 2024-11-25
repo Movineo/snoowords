@@ -1,0 +1,17 @@
+{
+  "name": "SnooWords - Reddit Word Game",
+  "short_name": "SnooWords",
+  "description": "Challenge your vocabulary in this Reddit-powered word game. Compete in daily challenges and earn Reddit awards!",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1a1a1a",
+  "theme_color": "#FF4500",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
