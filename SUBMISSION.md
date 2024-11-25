@@ -61,8 +61,8 @@ I created SnooWords using modern web technologies and best practices:
 - oauth2
 
 ## Try it out
-- [Play SnooWords](https://snoowords.com)
-- [GitHub Repository](https://github.com/MovineOdhiambo/snoowords)
+- [Play SnooWords](https://snoowords.vercel.app)
+- [GitHub Repository](https://github.com/Movineo/snoowords)
 - [Join our Subreddit](https://reddit.com/r/SnooWords)
 
 ## About the Developer
