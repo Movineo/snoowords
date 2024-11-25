@@ -11,6 +11,7 @@ export const RedditCallback: React.FC = () => {
     const handleCallback = async () => {
       const urlParams = new URLSearchParams(window.location.search);
       const code = urlParams.get('code');
+      const state = urlParams.get('state');
       const error = urlParams.get('error');
 
       if (error) {
@@ -19,25 +20,34 @@ export const RedditCallback: React.FC = () => {
         return;
       }
 
-      if (!code) {
-        console.error('No code received from Reddit');
+      if (!code || !state) {
+        console.error('Missing code or state from Reddit');
         navigate('/');
         return;
       }
 
       try {
-        const userData = await redditService.handleOAuthCallback(code);
-        setRedditUser({
-          name: userData.name,
-          karma: userData.karma,
-          isAuthenticated: true,
-          achievements: {
-            first_post: { unlocked: false, progress: 0 },
-            karma_collector: { unlocked: false, progress: 0 },
-            award_giver: { unlocked: false, progress: 0 },
-            community_leader: { unlocked: false, progress: 0 },
+        // Handle the callback using redditService
+        const success = await redditService.handleCallback(code, state);
+        if (success) {
+          // Get user data
+          const userData = await redditService.getUserData();
+          if (userData) {
+            setRedditUser({
+              name: userData.name,
+              karma: userData.karma,
+              isAuthenticated: true,
+              avatar: userData.avatar,
+              trophies: userData.trophies || 0,
+              achievements: {
+                first_post: { unlocked: false, progress: 0 },
+                karma_collector: { unlocked: false, progress: 0 },
+                award_giver: { unlocked: false, progress: 0 },
+                community_leader: { unlocked: false, progress: 0 },
+              }
+            });
           }
-        });
+        }
         navigate('/');
       } catch (error) {
         console.error('Failed to handle Reddit callback:', error);
@@ -49,10 +59,9 @@ export const RedditCallback: React.FC = () => {
   }, [navigate, setRedditUser]);
 
   return (
-    <div className="flex items-center justify-center min-h-screen">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
-        <p className="text-lg">Connecting to Reddit...</p>
+    <div className="flex items-center justify-center min-h-screen bg-gray-900">
+      <div className="text-white text-xl">
+        Logging you in...
       </div>
     </div>
   );

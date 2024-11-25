@@ -7,9 +7,16 @@ import { useStore } from '../store/gameStore';
 interface GameOverProps {
   words: Word[];
   onPlayAgain: () => void;
+  playerName: string;
+  onPlayerNameChange: (name: string) => void;
 }
 
-export const GameOver: React.FC<GameOverProps> = ({ words, onPlayAgain }) => {
+export const GameOver: React.FC<GameOverProps> = ({ 
+  words, 
+  onPlayAgain,
+  playerName,
+  onPlayerNameChange
+}) => {
   const { redditUser } = useStore();
   const totalScore = words.reduce((sum, word) => sum + word.points, 0);
   const longestWord = words.reduce(
@@ -103,17 +110,32 @@ export const GameOver: React.FC<GameOverProps> = ({ words, onPlayAgain }) => {
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4 items-stretch sm:items-center justify-center">
+        {!redditUser?.isAuthenticated && !playerName && (
+          <div className="mb-6">
+            <label htmlFor="playerName" className="block text-sm font-medium mb-2">
+              Enter your name to save score
+            </label>
+            <input
+              type="text"
+              id="playerName"
+              value={playerName}
+              onChange={(e) => onPlayerNameChange(e.target.value)}
+              placeholder="Your name"
+              className="w-full px-4 py-2 bg-gray-700/50 border border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+            />
+          </div>
+        )}
         <button
           onClick={onPlayAgain}
           className="px-8 py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg transition-colors"
         >
           Play Again
         </button>
-        {redditUser.isAuthenticated && (
+        {(redditUser.isAuthenticated || playerName) && (
           <ShareResults
             score={totalScore}
             words={words}
-            playerName={redditUser.name || undefined}
+            playerName={redditUser.name || playerName}
           />
         )}
       </div>

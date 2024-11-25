@@ -11,10 +11,10 @@ type GameStatus = 'idle' | 'playing' | 'paused' | 'ended';
 
 interface RedditUser {
   name: string | null;
-  karma: number;
+  karma: number | null;
   isAuthenticated: boolean;
   avatar: string | null;
-  trophies: number;
+  trophies: number | null;
   achievements: {
     [key: string]: {
       unlocked: boolean;
@@ -154,10 +154,10 @@ const INITIAL_STATE: GameState = {
   },
   redditUser: {
     name: null,
-    karma: 0,
+    karma: null,
     isAuthenticated: false,
     avatar: null,
-    trophies: 0,
+    trophies: null,
     achievements: {}
   },
   achievements: INITIAL_ACHIEVEMENTS,
@@ -167,7 +167,7 @@ const INITIAL_STATE: GameState = {
   showAchievements: false,
   timeRemaining: 60,
   multiplier: 1,
-  currentChallenge: null,
+  currentChallenge: null
 };
 
 export const useStore = create<GameState & GameActions>()(
@@ -382,7 +382,9 @@ export const useStore = create<GameState & GameActions>()(
           showRules: !state.showRules,
         } as Partial<GameState>)),
 
-      setRedditUser: (user: GameState['redditUser']) => set({ redditUser: user }),
+      setRedditUser: (user: GameState['redditUser']) => {
+        set({ redditUser: user });
+      },
 
       updateAchievementProgress: (achievementId: string, progress: number) =>
         set((state: GameState) => ({

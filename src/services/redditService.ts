@@ -1,12 +1,18 @@
 import { supabase } from "../config/supabase";
 
-
 interface RedditAuthResponse {
   access_token: string;
   token_type: string;
   expires_in: number;
   refresh_token: string;
   scope: string;
+}
+
+interface RedditUserData {
+  name: string;
+  karma: number;
+  avatar: string | null;
+  trophies: number;
 }
 
 class RedditService {
@@ -25,7 +31,7 @@ class RedditService {
       state,
       redirect_uri: this.redirectUri,
       duration: 'permanent',
-      scope: 'identity submit read'
+      scope: 'identity submit'
     });
 
     return `https://www.reddit.com/api/v1/authorize?${params.toString()}`;
@@ -54,7 +60,7 @@ class RedditService {
       ]);
 
     if (error) {
-      console.error('Error storing Reddit tokens:', error);
+      console.error('Error storing tokens:', error);
       return false;
     }
 
@@ -73,18 +79,55 @@ class RedditService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
-          Authorization: `Basic ${btoa(`${this.clientId}:${this.clientSecret}`)}`
+          'Authorization': `Basic ${btoa(`${this.clientId}:${this.clientSecret}`)}`
         },
-        body: params.toString()
+        body: params
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        throw new Error('Failed to get access token');
       }
 
       return await response.json();
     } catch (error) {
       console.error('Error getting access token:', error);
+      return null;
+    }
+  }
+
+  public async getUserData(): Promise<RedditUserData | null> {
+    try {
+      const { data: tokens } = await supabase
+        .from('reddit_tokens')
+        .select('access_token')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (!tokens?.access_token) {
+        throw new Error('No access token found');
+      }
+
+      const response = await fetch('https://oauth.reddit.com/api/v1/me', {
+        headers: {
+          'Authorization': `Bearer ${tokens.access_token}`,
+          'User-Agent': 'SnooWords/1.0.0'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get user data');
+      }
+
+      const data = await response.json();
+      return {
+        name: data.name,
+        karma: data.total_karma || 0,
+        avatar: data.icon_img || null,
+        trophies: data.trophies?.length || 0
+      };
+    } catch (error) {
+      console.error('Error getting user data:', error);
       return null;
     }
   }
@@ -115,7 +158,7 @@ class RedditService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
-          Authorization: `Bearer ${tokens.access_token}`,
+          'Authorization': `Bearer ${tokens.access_token}`,
           'User-Agent': 'SnooWords/1.0.0'
         },
         body: new URLSearchParams({

@@ -3,9 +3,15 @@ import { useStore } from '../store/gameStore';
 
 interface GameSetupProps {
   onStartGame: () => void;
+  playerName: string;
+  onPlayerNameChange: (name: string) => void;
 }
 
-export const GameSetup: React.FC<GameSetupProps> = ({ onStartGame }) => {
+export const GameSetup: React.FC<GameSetupProps> = ({ 
+  onStartGame, 
+  playerName, 
+  onPlayerNameChange 
+}) => {
   const [inputValue, setInputValue] = React.useState('');
   const [error, setError] = React.useState('');
 
@@ -49,6 +55,19 @@ export const GameSetup: React.FC<GameSetupProps> = ({ onStartGame }) => {
           {error && (
             <p className="text-red-400 text-sm mt-1">{error}</p>
           )}
+        </div>
+        <div className="space-y-2">
+          <label htmlFor="playerName" className="block text-sm font-medium">
+            Your Name (optional)
+          </label>
+          <input
+            type="text"
+            id="playerName"
+            value={playerName}
+            onChange={(e) => onPlayerNameChange(e.target.value)}
+            placeholder="Enter your name to save scores"
+            className="w-full px-4 py-2 bg-gray-700/50 border border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+          />
         </div>
         <button
           type="submit"

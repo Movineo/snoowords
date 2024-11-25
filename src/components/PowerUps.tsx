@@ -1,5 +1,5 @@
 import React from 'react';
-import { Clock, Award, Star, TrendingUp, Gift } from 'lucide-react';
+import { Clock, Award, Star, TrendingUp, Gift, Shield } from 'lucide-react';
 import { useStore } from '../store/gameStore';
 import { toast } from 'react-hot-toast';
 
@@ -17,6 +17,8 @@ interface PowerUp {
 
 export const PowerUps = () => {
     const { activatePowerUp, redditUser, powerUps } = useStore();
+
+    const karmaLevel = (redditUser?.karma || 0) >= 1000;
 
     const powerUpsList: PowerUp[] = [
         {
@@ -72,7 +74,7 @@ export const PowerUps = () => {
             return;
         }
 
-        if (redditUser.karma < powerUp.karmaRequired) {
+        if ((redditUser?.karma || 0) < powerUp.karmaRequired) {
             toast.error(`Not enough karma! Need ${powerUp.karmaRequired} karma.`);
             return;
         }
@@ -91,7 +93,7 @@ export const PowerUps = () => {
             {powerUpsList.map((powerUp) => {
                 const Icon = powerUp.icon;
                 const isActive = powerUps[powerUp.id];
-                const canAfford = redditUser.karma >= powerUp.karmaRequired;
+                const canAfford = (redditUser?.karma || 0) >= powerUp.karmaRequired;
                 const isAuthenticated = redditUser.isAuthenticated;
 
                 return (

@@ -14,11 +14,11 @@ import { Leaderboard } from './components/Leaderboard';
 import { CommunityChallenge } from './components/CommunityChallenge';
 
 function App() {
-  const { gameStatus, showRules, words, timeLeft, toggleRules } = useStore();
+  const { status, showRules, words, timeLeft, toggleRules } = useStore();
   const [playerName, setPlayerName] = useState('');
 
   const handleStartGame = () => {
-    useStore.setState({ gameStatus: 'playing' });
+    useStore.setState({ status: 'playing' });
   };
 
   const handlePlayAgain = () => {
@@ -28,9 +28,18 @@ function App() {
   // Submit score when game ends
   useEffect(() => {
     const submitScore = async () => {
-      if (gameStatus === 'idle' && words.length > 0 && playerName) {
+      if (status === 'idle' && words.length > 0) {
         try {
-          await gameService.submitScore(playerName, {
+          // Only require player name if not logged in with Reddit
+          const { redditUser } = useStore.getState();
+          const finalPlayerName = redditUser?.name || playerName;
+          
+          if (!finalPlayerName) {
+            toast.error('Please enter your name to submit score');
+            return;
+          }
+
+          await gameService.submitScore(finalPlayerName, {
             score: words.reduce((sum, word) => sum + word.points, 0),
             words: words,
             gameMode: { 
@@ -51,7 +60,7 @@ function App() {
     };
 
     submitScore();
-  }, [gameStatus, words, playerName, timeLeft]);
+  }, [status, words, playerName, timeLeft]);
 
   return (
     <Router>
@@ -63,14 +72,20 @@ function App() {
               path="/" 
               element={
                 <>
-                  {gameStatus === 'idle' && !words.length && (
+                  {showRules && <GameRules />}
+                  
+                  {status === 'idle' && !words.length && (
                     <div className="space-y-6">
                       <DailyChallenge />
-                      <GameSetup onStartGame={handleStartGame} />
+                      <GameSetup 
+                        onStartGame={handleStartGame}
+                        playerName={playerName}
+                        onPlayerNameChange={setPlayerName}
+                      />
                     </div>
                   )}
-                  {showRules && <GameRules />}
-                  {gameStatus === 'playing' && (
+                  
+                  {status === 'playing' && (
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
                       <div className="lg:col-span-2 space-y-4">
                         <GameBoard />
@@ -80,16 +95,20 @@ function App() {
                       </div>
                     </div>
                   )}
-                  {gameStatus === 'ended' && (
+                  
+                  {status === 'ended' && (
                     <div className="space-y-6">
                       <GameOver
                         words={words}
                         onPlayAgain={handlePlayAgain}
+                        playerName={playerName}
+                        onPlayerNameChange={setPlayerName}
                       />
                       <Leaderboard />
                     </div>
                   )}
-                  {gameStatus === 'idle' && !words.length && (
+                  
+                  {status === 'idle' && !words.length && (
                     <div className="mt-6">
                       <Leaderboard />
                     </div>
