@@ -6,6 +6,14 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
+export interface SubredditPack {
+  id: string;
+  subreddit: string;
+  words: string[];
+  lastUpdated: string;
+  upvotes: number;
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -113,24 +121,73 @@ export interface Database {
           expires_at?: string
         }
       }
-      achievements: {
+      player_achievements: {
         Row: {
           id: string
           player_id: string
-          type: string
+          achievement_type: string
           unlocked_at: string
         }
         Insert: {
           id?: string
           player_id: string
-          type: string
+          achievement_type: string
           unlocked_at?: string
         }
         Update: {
           id?: string
           player_id?: string
-          type?: string
+          achievement_type?: string
           unlocked_at?: string
+        }
+      }
+      subreddit_word_packs: {
+        Row: {
+          id: string
+          subreddit: string
+          words: string[]
+          last_updated: string
+          upvotes: number
+        }
+        Insert: {
+          id?: string
+          subreddit: string
+          words: string[]
+          last_updated?: string
+          upvotes?: number
+        }
+        Update: {
+          id?: string
+          subreddit?: string
+          words?: string[]
+          last_updated?: string
+          upvotes?: number
+        }
+      }
+      daily_themes: {
+        Row: {
+          id: string
+          theme: string
+          description: string
+          bonus_words: string[]
+          created_at: string
+          expires_at: string
+        }
+        Insert: {
+          id?: string
+          theme: string
+          description: string
+          bonus_words?: string[]
+          created_at?: string
+          expires_at: string
+        }
+        Update: {
+          id?: string
+          theme?: string
+          description?: string
+          bonus_words?: string[]
+          created_at?: string
+          expires_at?: string
         }
       }
     }

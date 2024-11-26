@@ -10,6 +10,11 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
 
+// Add debug logging for Supabase connection
+supabase.auth.onAuthStateChange((event, session) => {
+  console.log('Supabase auth state changed:', event, session?.user?.id);
+});
+
 export interface DailyChallenge {
   id: string;
   theme: string;
@@ -89,14 +94,43 @@ export const unlockAchievement = async (
   achievementType: string
 ) => {
   const { data, error } = await supabase
-    .from('achievements')
-    .insert([
-      {
-        player_id: playerId,
-        achievement_type: achievementType
-      }
-    ]);
+    .from('player_achievements')
+    .insert({
+      player_id: playerId,
+      achievement_type: achievementType,
+      unlocked_at: new Date().toISOString()
+    });
 
-  if (error) throw error;
+  if (error) {
+    console.error('Error unlocking achievement:', error);
+    throw error;
+  }
+
   return data;
 };
+
+// Test database connection
+export const testDatabaseConnection = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('subreddit_word_packs')
+      .select('subreddit')
+      .limit(1);
+    
+    if (error) {
+      console.error('Database connection test failed:', error);
+      return false;
+    }
+    
+    console.log('Database connection test succeeded:', data);
+    return true;
+  } catch (error) {
+    console.error('Database connection test error:', error);
+    return false;
+  }
+};
+
+// Call test on initialization
+testDatabaseConnection().then(connected => {
+  console.log('Initial database connection status:', connected);
+});

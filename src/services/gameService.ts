@@ -1,5 +1,8 @@
 import { supabase } from '../config/supabase';
-import { Word, GameMode, Challenge, AchievementType } from '../types';
+import { Word, GameMode, Challenge, AchievementType, CommunityPuzzle } from '../types/game';
+import { SubredditPack } from '../types/supabase';
+import { mockSubredditPacks } from './mockData';
+import { mockCommunityPuzzles } from './mockCommunityPuzzles';
 
 export interface GameSession {
   score: number;
@@ -93,33 +96,113 @@ export const gameService = {
   },
 
   async checkAchievements(redditUsername: string) {
-    const { data: player, error: playerError } = await supabase
-      .from('players')
-      .select('id, karma_points, games_played')
-      .eq('reddit_username', redditUsername)
-      .single();
+    const { data, error } = await supabase.rpc('check_achievements', {
+      p_reddit_username: redditUsername
+    });
 
-    if (playerError) return;
-
-    // Check for achievements based on karma points and games played
-    const achievements: AchievementType[] = [];
-    
-    if (player.karma_points >= 1000) achievements.push('karma_master');
-    if (player.games_played >= 10) achievements.push('dedicated_player');
-    if (player.karma_points >= 100 && player.games_played >= 5) achievements.push('rising_star');
-
-    // Add new achievements
-    for (const achievement of achievements) {
-      await supabase
-        .from('achievements')
-        .insert({
-          player_id: player.id,
-          achievement_type: achievement
-        })
-        .select()
-        .single();
+    if (error) {
+      console.error('Error checking achievements:', error);
+      return [];
     }
 
-    return achievements;
-  }
+    return data;
+  },
+
+  async getWordSuggestion(letters: string[], usedWords: string[]): Promise<string | null> {
+    try {
+      // Call the Supabase function to get word suggestions
+      const { data, error } = await supabase.rpc('get_word_suggestion', {
+        p_letters: letters,
+        p_used_words: usedWords
+      });
+
+      if (error) {
+        console.error('Error getting word suggestion:', error);
+        return null;
+      }
+
+      return data?.suggestion || null;
+    } catch (error) {
+      console.error('Error in getWordSuggestion:', error);
+      return null;
+    }
+  },
+
+  async getSubredditWordPacks(subreddit: string): Promise<string[]> {
+    try {
+      // Use mock data during development
+      const mockPack = mockSubredditPacks[subreddit];
+      if (mockPack) {
+        return mockPack.words;
+      }
+
+      // Fallback to database if no mock data exists
+      const { data, error } = await supabase
+        .from('subreddit_word_packs')
+        .select('words')
+        .eq('subreddit', subreddit)
+        .order('upvotes', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching word packs:', error);
+        return [];
+      }
+
+      if (!data || data.length === 0) {
+        return [];
+      }
+
+      // Efficiently combine words from all packs using a Set to remove duplicates
+      const uniqueWords = new Set<string>();
+      data.forEach(pack => {
+        if (Array.isArray(pack.words)) {
+          pack.words.forEach(word => uniqueWords.add(word.toLowerCase().trim()));
+        }
+      });
+
+      return Array.from(uniqueWords);
+    } catch (error) {
+      console.error('Unexpected error in getSubredditWordPacks:', error);
+      return [];
+    }
+  },
+
+  async getAllSubreddits() {
+    const { data, error } = await supabase
+      .from('subreddit_word_packs')
+      .select('subreddit')
+      .order('subreddit');
+
+    if (error) {
+      console.error('Error fetching subreddits:', error);
+      return [];
+    }
+
+    // Filter unique subreddits
+    const uniqueSubreddits = [...new Set(data.map(row => row.subreddit))];
+    return uniqueSubreddits;
+  },
+
+  async getCommunityPuzzles(category: 'popular' | 'new' | 'trending'): Promise<CommunityPuzzle[]> {
+    // In development, return mock data
+    if (process.env.NODE_ENV === 'development') {
+      return mockCommunityPuzzles[category] || [];
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('community_puzzles')
+        .select('*')
+        .eq('category', category)
+        .order('plays', { ascending: false });
+
+      if (error) throw error;
+      return data as CommunityPuzzle[];
+    } catch (error) {
+      console.error('Error fetching community puzzles:', error);
+      return [];
+    }
+  },
 };
+
+export type GameService = typeof gameService;

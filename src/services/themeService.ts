@@ -11,19 +11,27 @@ export interface DailyTheme {
 
 class ThemeService {
   private async getCurrentTheme(): Promise<DailyTheme | null> {
-    const { data, error } = await supabase
-      .from('daily_themes')
-      .select('*')
-      .gte('expires_at', new Date().toISOString())
-      .lte('created_at', new Date().toISOString())
-      .single();
+    try {
+      const now = new Date().toISOString();
+      const { data, error } = await supabase
+        .from('daily_themes')
+        .select('*')
+        .gte('expires_at', now)
+        .lte('created_at', now)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
 
-    if (error) {
+      if (error) {
+        console.error('Error fetching current theme:', error);
+        return null;
+      }
+
+      return data;
+    } catch (error) {
       console.error('Error fetching current theme:', error);
       return null;
     }
-
-    return data;
   }
 
   private async createNewTheme(): Promise<DailyTheme | null> {
@@ -68,24 +76,29 @@ class ThemeService {
     const expires = new Date(now);
     expires.setUTCHours(23, 59, 59, 999);
 
-    const { data, error } = await supabase
-      .from('daily_themes')
-      .insert({
-        theme: randomTheme.theme,
-        description: randomTheme.description,
-        bonus_words: randomTheme.bonus_words,
-        created_at: now.toISOString(),
-        expires_at: expires.toISOString()
-      })
-      .select()
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('daily_themes')
+        .insert({
+          theme: randomTheme.theme,
+          description: randomTheme.description,
+          bonus_words: randomTheme.bonus_words,
+          created_at: now.toISOString(),
+          expires_at: expires.toISOString()
+        })
+        .select()
+        .single();
 
-    if (error) {
+      if (error) {
+        console.error('Error creating new theme:', error);
+        return null;
+      }
+
+      return data;
+    } catch (error) {
       console.error('Error creating new theme:', error);
       return null;
     }
-
-    return data;
   }
 
   public async getDailyTheme(): Promise<DailyTheme | null> {

@@ -1,11 +1,13 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import { showAchievementToast } from '../utils/notifications';
-import { Word, AchievementType, Challenge } from '../types';
+import { Word, AchievementType, Challenge, GameMode, GameRules, LeaderboardEntry, CommunityPuzzle } from '../types/game';
+import { SubredditPack } from '../types/supabase';
 import { supabase } from '../services/supabase';
 import { gameService } from '../services/gameService';
-import { themeService } from '../services/themeService'; // Import themeService
+import { themeService } from '../services/themeService';
 import { generateLetters } from '../utils/gameUtils';
+import { mockSubredditPacks } from '../services/mockData';
 
 type GameStatus = 'idle' | 'playing' | 'paused' | 'ended';
 
@@ -21,14 +23,6 @@ interface RedditUser {
       progress: number;
     }
   };
-}
-
-interface LeaderboardEntry {
-  player: string;
-  score: number;
-  isRedditUser: boolean;
-  timestamp: string;
-  words?: string[];
 }
 
 interface GameState {
@@ -49,6 +43,12 @@ interface GameState {
   showRules: boolean;
   dailyTheme: string;
   showAchievements: boolean;
+  leaderboard: {
+    daily: LeaderboardEntry[];
+    allTime: LeaderboardEntry[];
+    loading: boolean;
+    error: string | null;
+  };
   achievements: {
     id: string;
     name: string;
@@ -57,19 +57,29 @@ interface GameState {
     unlocked: boolean;
     progress: number;
   }[];
-  gameMode: {
-    name: string;
-    multiplier: number;
-  } | null;
   powerUps: {
     timeAward: boolean;
     doubleKarma: boolean;
     karmaBoost: boolean;
     awardsMultiplier: boolean;
     redditGold: boolean;
+    timeFreeze: boolean;
+    wordHint: boolean;
+    scoreBoost: boolean;
+    letterShuffle: boolean;
   };
   karma: number;
   currentChallenge: Challenge | null;
+  isVoiceEnabled: boolean;
+  showSubredditPacks: boolean;
+  showCommunityPuzzles: boolean;
+  wordSuggestions: string[];
+  gameMode: GameMode | null;
+  subredditPacks: { [key: string]: SubredditPack };
+  availableSubreddits: string[];
+  currentSubreddit: string | null;
+  communityPuzzles: CommunityPuzzle[];
+  selectedCommunityPuzzle: CommunityPuzzle | null;
 }
 
 interface GameActions {
@@ -94,6 +104,16 @@ interface GameActions {
   selectLetter: (index: number) => void;
   clearSelection: () => void;
   gameOver: () => void;
+  toggleVoice: () => void;
+  setShowSubredditPacks: (show: boolean) => void;
+  setShowCommunityPuzzles: (show: boolean) => void;
+  requestWordSuggestion: () => Promise<void>;
+  fetchLeaderboard: () => Promise<void>;
+  submitScore: () => Promise<void>;
+  fetchSubredditPacks: (subreddit: string) => Promise<void>;
+  fetchAvailableSubreddits: () => Promise<void>;
+  fetchCommunityPuzzles: (category: 'popular' | 'new' | 'trending') => Promise<void>;
+  setSelectedCommunityPuzzle: (puzzle: CommunityPuzzle | null) => void;
 }
 
 const INITIAL_ACHIEVEMENTS = [
@@ -141,48 +161,107 @@ const DAILY_THEMES = [
   'Books',
 ];
 
-const INITIAL_STATE: GameState = {
+const defaultGameRules: GameRules = {
+  minWordLength: 3,
+  maxWordLength: 16
+};
+
+const GAME_MODES: GameMode[] = [
+  {
+    id: 'classic',
+    name: 'Classic Mode',
+    description: 'Find as many words as you can in 3 minutes',
+    duration: 180,
+    icon: 'star',
+    rules: defaultGameRules
+  } as GameMode,
+  {
+    id: 'speed',
+    name: 'Speed Run',
+    description: 'Race against time with 2x points!',
+    duration: 90,
+    icon: 'zap',
+    rules: {
+      ...defaultGameRules,
+      bonusPoints: [
+        { category: 'all', multiplier: 2 }
+      ]
+    }
+  } as GameMode,
+  {
+    id: 'challenge',
+    name: 'Daily Challenge',
+    description: 'Special themed words with bonus points',
+    duration: 300,
+    icon: 'trophy',
+    rules: {
+      ...defaultGameRules,
+      minWordLength: 4,
+      bonusPoints: [
+        { category: 'theme', multiplier: 2 }
+      ]
+    }
+  } as GameMode
+];
+
+const initialState: GameState = {
   playerName: '',
   score: 0,
   streak: 0,
   longestStreak: 0,
   words: [],
+  currentWord: '',
   letters: generateLetters(),
   selectedLetters: [],
-  timeLeft: 60,
-  currentWord: '',
   error: null,
   status: 'idle',
+  timeLeft: 180,
   redditUser: {
     isAuthenticated: false,
     name: '',
-    avatar: null,
-    trophies: null,
     achievements: {}
   },
   gameStartTime: null,
   finalScore: null,
   showRules: false,
-  dailyTheme: DAILY_THEMES[Math.floor(Math.random() * DAILY_THEMES.length)],
+  dailyTheme: '',
   showAchievements: false,
+  leaderboard: {
+    daily: [],
+    allTime: [],
+    loading: false,
+    error: null
+  },
   achievements: INITIAL_ACHIEVEMENTS,
-  gameMode: null,
   powerUps: {
     timeAward: false,
     doubleKarma: false,
     karmaBoost: false,
     awardsMultiplier: false,
-    redditGold: false
+    redditGold: false,
+    timeFreeze: false,
+    wordHint: false,
+    scoreBoost: false,
+    letterShuffle: false
   },
   karma: 0,
-  currentChallenge: null
+  currentChallenge: null,
+  isVoiceEnabled: false,
+  showSubredditPacks: false,
+  showCommunityPuzzles: false,
+  wordSuggestions: [],
+  gameMode: GAME_MODES[0],
+  subredditPacks: {},
+  availableSubreddits: [],
+  currentSubreddit: null,
+  communityPuzzles: [],
+  selectedCommunityPuzzle: null,
 };
 
 export const useStore = create<GameState & GameActions>()(
   devtools(
     (set, get) => ({
-      // Initial state
-      ...INITIAL_STATE,
+      ...initialState,
 
       // Actions
       setPlayerName: (name: string) => set({ playerName: name }),
@@ -241,37 +320,43 @@ export const useStore = create<GameState & GameActions>()(
         } as Partial<GameState>)),
 
       startGame: () => {
+        const letters = generateLetters();
         set({
+          letters,
           status: 'playing',
-          timeLeft: 60,
-          letters: generateLetters(),
-          words: [],
           score: 0,
-          streak: 0,
+          words: [],
           currentWord: '',
           error: null,
+          timeLeft: get().gameMode?.duration || 180,
+          gameStartTime: new Date(),
+          finalScore: null,
           selectedLetters: [],
-          gameStartTime: new Date()
-        } as Partial<GameState>);
+        });
 
-        // Load daily theme
-        themeService.getDailyTheme().then(theme => {
-          if (theme) {
-            set({
-              dailyTheme: theme.theme,
-              currentChallenge: {
+        // Fetch daily theme if not already set
+        if (!get().dailyTheme) {
+          themeService.getDailyTheme().then(theme => {
+            if (theme) {
+              const challenge: Challenge = {
                 id: theme.id,
                 title: 'Daily Theme Challenge',
                 description: theme.description,
                 theme: theme.theme,
-                targetScore: 100,
-                participants: 0,
                 start_date: theme.created_at,
-                end_date: theme.expires_at
-              }
-            } as Partial<GameState>);
-          }
-        });
+                end_date: theme.expires_at,
+                reward_karma: 100,
+                targetScore: 100,
+                participants: 0
+              };
+
+              set({
+                dailyTheme: theme.theme,
+                currentChallenge: challenge
+              });
+            }
+          });
+        }
       },
 
       pauseGame: () => set({ status: 'paused' } as Partial<GameState>),
@@ -343,84 +428,51 @@ export const useStore = create<GameState & GameActions>()(
 
       submitWord: () => {
         const state = get();
-        const { currentWord, words, streak, score, gameMode, redditUser, playerName, longestStreak, letters } = state;
-        const word = currentWord.toUpperCase();
+        if (!state.currentWord || state.currentWord.length < 3) return;
 
-        // Basic validation
-        if (word.length < 3) {
-          set({ error: 'Words must be at least 3 letters long' } as Partial<GameState>);
-          return;
+        // Calculate points based on word length
+        const basePoints = state.currentWord.length * 10;
+        let finalPoints = basePoints;
+
+        // Check if word is themed
+        const isThemed = state.dailyTheme && 
+          state.currentWord.toLowerCase().includes(state.dailyTheme.toLowerCase());
+
+        // Apply game mode bonuses if available
+        if (state.gameMode) {
+          if (state.gameMode.rules?.bonusPoints) {
+            // Apply themed word bonus if applicable
+            if (isThemed) {
+              const themeBonus = state.gameMode.rules.bonusPoints.find(b => b.category === 'theme');
+              if (themeBonus) {
+                finalPoints *= themeBonus.multiplier;
+              }
+            }
+          }
         }
 
-        if (words.some(w => w.word.toUpperCase() === word)) {
-          set({ error: 'Word already found!' } as Partial<GameState>);
-          return;
+        const newWord: Word = {
+          word: state.currentWord,
+          points: Math.round(finalPoints),
+          player: state.playerName,
+          ...(isThemed && { themed: true })
+        };
+
+        // Update game state
+        set({
+          words: [...state.words, newWord],
+          currentWord: '',
+          error: null,
+          score: state.score + Math.round(finalPoints),
+          streak: state.streak + 1,
+          longestStreak: Math.max(state.longestStreak, state.streak + 1),
+          selectedLetters: [],
+        } as Partial<GameState>);
+
+        // Update karma for authenticated users
+        if (state.redditUser.isAuthenticated) {
+          get().updateKarma(Math.round(finalPoints));
         }
-
-        // Validate word can be made from available letters
-        const letterCounts = letters.reduce((acc, letter) => {
-          acc[letter] = (acc[letter] || 0) + 1;
-          return acc;
-        }, {} as Record<string, number>);
-
-        // Check if word can be made from available letters
-        const lettersInWord = word.split('');
-        const isValidWord = lettersInWord.every(letter => 
-          letterCounts[letter] && letterCounts[letter] > 0
-        );
-
-        if (!isValidWord) {
-          set({ error: 'Word can only contain available letters!' } as Partial<GameState>);
-          return;
-        }
-
-        // Calculate base points
-        let points = word.length;
-
-        // Check for theme bonus
-        themeService.checkWordBonus(word).then(multiplier => {
-          // Apply theme bonus
-          points *= multiplier;
-          if (multiplier > 1) {
-            showAchievementToast(`Theme Bonus! 🌟 "${word}" matches today's theme!`);
-          }
-
-          // Streak bonus
-          if (streak > 0) {
-            points = Math.floor(points * (1 + streak * 0.1));
-          }
-
-          // Game mode multiplier
-          if (gameMode?.multiplier) {
-            points = Math.floor(points * gameMode.multiplier);
-          }
-
-          // Update longest streak
-          const newStreak = streak + 1;
-          const newLongestStreak = Math.max(longestStreak, newStreak);
-
-          const newWord: Word = {
-            word: word,
-            points,
-            player: playerName || 'Anonymous',
-          };
-
-          // Update game state
-          set({
-            words: [...words, newWord],
-            currentWord: '',
-            error: null,
-            score: score + points,
-            streak: newStreak,
-            longestStreak: newLongestStreak,
-            selectedLetters: [],
-          } as Partial<GameState>);
-
-          // Update karma for authenticated users
-          if (redditUser.isAuthenticated) {
-            get().updateKarma(points);
-          }
-        });
       },
 
       toggleRules: () =>
@@ -470,7 +522,7 @@ export const useStore = create<GameState & GameActions>()(
       resetGame: () => {
         const currentState = get();
         set({
-          ...INITIAL_STATE,
+          ...initialState,
           letters: generateLetters(),
           redditUser: currentState.redditUser, // Preserve Reddit user state
           dailyTheme: currentState.dailyTheme, // Preserve current theme
@@ -509,6 +561,186 @@ export const useStore = create<GameState & GameActions>()(
         if (score > 100) {
           showAchievementToast('High Score! 🏆');
         }
+      },
+
+      toggleVoice: () => {
+        set(state => ({ isVoiceEnabled: !state.isVoiceEnabled }));
+      },
+
+      setShowSubredditPacks: (show: boolean) => {
+        set((state: GameState) => ({
+          ...state,
+          showSubredditPacks: show,
+          // Reset current subreddit when closing
+          currentSubreddit: show ? state.currentSubreddit : null
+        }));
+      },
+
+      setShowCommunityPuzzles: (show: boolean) => {
+        set((state: GameState) => ({
+          ...state,
+          showCommunityPuzzles: show
+        }));
+      },
+
+      async requestWordSuggestion() {
+        const state = get();
+        if (!state.letters || state.letters.length === 0) return;
+
+        const usedWords = state.words.map(w => w.word);
+        const suggestion = await gameService.getWordSuggestion(state.letters, usedWords);
+        
+        if (suggestion) {
+          set({ wordSuggestions: [...state.wordSuggestions, suggestion] });
+          showAchievementToast(`Try this word: ${suggestion}`);
+        }
+      },
+
+      fetchLeaderboard: async () => {
+        set((state: GameState) => ({
+          ...state,
+          leaderboard: {
+            ...state.leaderboard,
+            loading: true,
+            error: null
+          }
+        } as Partial<GameState>));
+
+        try {
+          // First try to fetch all leaderboard entries
+          const { data: leaderboardData, error: fetchError } = await supabase
+            .from('leaderboard')
+            .select('*')
+            .order('score', { ascending: false });
+
+          if (fetchError) throw fetchError;
+
+          // Split into daily and all-time after fetching
+          const now = new Date();
+          const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+          
+          const transformedState: Partial<GameState> = {
+            leaderboard: {
+              daily: leaderboardData
+                ?.filter(entry => entry.created_at >= startOfDay)
+                .slice(0, 10)
+                .map(entry => ({
+                  id: entry.id,
+                  player_name: entry.player_name,
+                  score: entry.score,
+                  is_reddit_user: entry.is_reddit_user,
+                  created_at: entry.created_at,
+                  type: 'daily' as const,
+                  words: entry.words || []
+                })) || [],
+              allTime: leaderboardData
+                ?.slice(0, 10)
+                .map(entry => ({
+                  id: entry.id,
+                  player_name: entry.player_name,
+                  score: entry.score,
+                  is_reddit_user: entry.is_reddit_user,
+                  created_at: entry.created_at,
+                  type: 'all_time' as const,
+                  words: entry.words || []
+                })) || [],
+              loading: false,
+              error: null
+            }
+          };
+
+          set((state: GameState) => ({
+            ...state,
+            ...transformedState
+          }));
+        } catch (error) {
+          console.error('Error fetching leaderboard:', error);
+          set((state: GameState) => ({
+            ...state,
+            leaderboard: {
+              ...state.leaderboard,
+              loading: false,
+              error: 'Failed to load leaderboard data'
+            }
+          } as Partial<GameState>));
+        }
+      },
+
+      submitScore: async () => {
+        const state = get();
+        const { score, words, redditUser, gameMode, dailyTheme } = state;
+        
+        if (score <= 0) return;
+
+        const entry = {
+          player_name: redditUser.isAuthenticated ? redditUser.name : state.playerName || 'Anonymous',
+          score,
+          is_reddit_user: redditUser.isAuthenticated,
+          created_at: new Date().toISOString(),
+          words: words.map(w => w.word)
+        };
+
+        try {
+          const { error } = await supabase
+            .from('leaderboard')
+            .insert([entry]);
+
+          if (error) throw error;
+
+          // Refresh leaderboard
+          get().fetchLeaderboard();
+        } catch (error) {
+          console.error('Error submitting score:', error);
+        }
+      },
+
+      fetchSubredditPacks: async (subreddit: string) => {
+        try {
+          const mockPack = mockSubredditPacks[subreddit];
+          const words = await gameService.getSubredditWordPacks(subreddit);
+          
+          set((state: GameState & GameActions) => ({
+            ...state,
+            subredditPacks: {
+              ...state.subredditPacks,
+              [subreddit]: {
+                id: mockPack?.id || `${subreddit}-${Date.now()}`,
+                subreddit,
+                words,
+                lastUpdated: new Date().toISOString(),
+                upvotes: mockPack?.upvotes || 0
+              }
+            },
+            currentSubreddit: subreddit
+          }));
+        } catch (error) {
+          console.error('Error fetching subreddit packs:', error);
+        }
+      },
+
+      fetchAvailableSubreddits: async () => {
+        try {
+          const subreddits = await gameService.getAllSubreddits();
+          set((state: GameState) => ({
+            ...state,
+            availableSubreddits: subreddits
+          }));
+        } catch (error) {
+          console.error('Error fetching available subreddits:', error);
+        }
+      },
+
+      fetchCommunityPuzzles: async (category: 'popular' | 'new' | 'trending') => {
+        try {
+          const puzzles = await gameService.getCommunityPuzzles(category);
+          set({ communityPuzzles: puzzles });
+        } catch (error) {
+          console.error('Error fetching community puzzles:', error);
+        }
+      },
+
+      setSelectedCommunityPuzzle: (puzzle: CommunityPuzzle | null) => {
+        set({ selectedCommunityPuzzle: puzzle });
       },
     })
   )
