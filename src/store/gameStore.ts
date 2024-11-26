@@ -428,51 +428,70 @@ export const useStore = create<GameState & GameActions>()(
 
       submitWord: () => {
         const state = get();
-        if (!state.currentWord || state.currentWord.length < 3) return;
+        const word = state.currentWord.toLowerCase();
 
-        // Calculate points based on word length
-        const basePoints = state.currentWord.length * 10;
-        let finalPoints = basePoints;
+        // Check if word is empty
+        if (!word) {
+          set({ error: 'Please enter a word' });
+          return;
+        }
 
-        // Check if word is themed
-        const isThemed = state.dailyTheme && 
-          state.currentWord.toLowerCase().includes(state.dailyTheme.toLowerCase());
+        // Check if word is too short
+        if (word.length < 3) {
+          set({ error: 'Word must be at least 3 letters long' });
+          return;
+        }
 
-        // Apply game mode bonuses if available
-        if (state.gameMode) {
-          if (state.gameMode.rules?.bonusPoints) {
-            // Apply themed word bonus if applicable
-            if (isThemed) {
-              const themeBonus = state.gameMode.rules.bonusPoints.find(b => b.category === 'theme');
-              if (themeBonus) {
-                finalPoints *= themeBonus.multiplier;
-              }
-            }
+        // Check if word has already been used
+        if (state.words.some(w => w.word.toLowerCase() === word)) {
+          set({ error: 'You have already used this word' });
+          return;
+        }
+
+        // Validate that the word only uses available letters and in correct quantities
+        const availableLetters = [...state.letters];
+        const wordLetters = word.split('');
+        
+        for (const letter of wordLetters) {
+          const index = availableLetters.indexOf(letter.toLowerCase());
+          if (index === -1) {
+            set({ error: 'Invalid word: uses unavailable letters' });
+            return;
           }
+          availableLetters.splice(index, 1);
         }
 
-        const newWord: Word = {
-          word: state.currentWord,
-          points: Math.round(finalPoints),
-          player: state.playerName,
-          ...(isThemed && { themed: true })
-        };
+        // Validate word against dictionary
+        gameService.validateWord(word).then(isValid => {
+          if (!isValid) {
+            set({ error: 'Not a valid word' });
+            return;
+          }
 
-        // Update game state
-        set({
-          words: [...state.words, newWord],
-          currentWord: '',
-          error: null,
-          score: state.score + Math.round(finalPoints),
-          streak: state.streak + 1,
-          longestStreak: Math.max(state.longestStreak, state.streak + 1),
-          selectedLetters: [],
-        } as Partial<GameState>);
+          // Calculate points (you can adjust the scoring formula)
+          const points = Math.pow(2, word.length - 2);
 
-        // Update karma for authenticated users
-        if (state.redditUser.isAuthenticated) {
-          get().updateKarma(Math.round(finalPoints));
-        }
+          // Create new word object with proper type
+          const newWord: Word = {
+            word,
+            points,
+            player: state.playerName
+          };
+
+          // Add word to the list with proper typing
+          set((state: GameState) => ({
+            words: [...state.words, newWord],
+            score: state.score + points,
+            currentWord: '',
+            selectedLetters: [],
+            error: null,
+            streak: state.streak + 1,
+            longestStreak: Math.max(state.streak + 1, state.longestStreak)
+          }));
+
+          // Check for achievements
+          get().checkAchievements();
+        });
       },
 
       toggleRules: () =>

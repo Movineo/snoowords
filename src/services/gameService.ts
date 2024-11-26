@@ -203,6 +203,23 @@ export const gameService = {
       return [];
     }
   },
+
+  async validateWord(word: string): Promise<boolean> {
+    try {
+      // First check local dictionary if available
+      const localDictionary = ['cat', 'dog', 'house']; // Replace with actual dictionary
+      if (localDictionary.includes(word.toLowerCase())) {
+        return true;
+      }
+
+      // If not in local dictionary, check external API
+      const response = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`);
+      return response.ok;
+    } catch (error) {
+      console.error('Error validating word:', error);
+      return false;
+    }
+  },
 };
 
 export type GameService = typeof gameService;
