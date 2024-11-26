@@ -25,7 +25,8 @@ export const GameBoard: React.FC = () => {
     showSubredditPacks,
     setShowSubredditPacks,
     showCommunityPuzzles,
-    setShowCommunityPuzzles
+    setShowCommunityPuzzles,
+    clearSelection
   } = useStore();
 
   useEffect(() => {
@@ -104,6 +105,21 @@ export const GameBoard: React.FC = () => {
                     e.preventDefault(); // Prevent default touch behavior
                     handleLetterClick(index);
                   }}
+                  onTouchMove={(e) => {
+                    e.preventDefault();
+                    // Get the element under the touch point
+                    const touch = e.touches[0];
+                    const element = document.elementFromPoint(touch.clientX, touch.clientY);
+                    if (element?.hasAttribute('data-index')) {
+                      const touchedIndex = parseInt(element.getAttribute('data-index') || '');
+                      if (!isNaN(touchedIndex) && touchedIndex !== index) {
+                        handleLetterClick(touchedIndex);
+                      }
+                    }
+                  }}
+                  onTouchEnd={(e) => {
+                    e.preventDefault();
+                  }}
                   onClick={() => handleLetterClick(index)}
                   className={`
                     relative aspect-square flex items-center justify-center
@@ -139,6 +155,17 @@ export const GameBoard: React.FC = () => {
                 </button>
               );
             })}
+          </div>
+          {/* Clear Selection Button */}
+          <div className="mt-4 flex justify-center">
+            <button
+              onClick={() => {
+                clearSelection();
+              }}
+              className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+            >
+              Clear Selection
+            </button>
           </div>
         </div>
 

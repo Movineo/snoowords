@@ -526,20 +526,8 @@ export const useStore = create<GameState & GameActions>()(
         const state = get();
         const { selectedLetters, letters } = state;
         
-        // If letter is already selected, unselect it and all letters after it
-        const existingIndex = selectedLetters.indexOf(index);
-        if (existingIndex !== -1) {
-          const newSelectedLetters = selectedLetters.slice(0, existingIndex);
-          const newWord = newSelectedLetters.map(i => letters[i]).join('');
-          set({ 
-            selectedLetters: newSelectedLetters,
-            currentWord: newWord.toUpperCase(),
-            error: null
-          });
-          return;
-        }
-        
         // Allow selecting the same letter position multiple times for repeated letters
+        // Don't clear selection when selecting a letter again
         const newSelectedLetters = [...selectedLetters, index];
         const newWord = newSelectedLetters.map(i => letters[i]).join('');
         set({ 
