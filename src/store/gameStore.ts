@@ -456,10 +456,12 @@ export const useStore = create<GameState & GameActions>()(
         });
 
         // Check if we have enough of each letter to form the word
-        const wordLetterFrequency: { [key: string]: number } = {};
-        for (const letter of word) {
-          wordLetterFrequency[letter] = (wordLetterFrequency[letter] || 0) + 1;
-          if (!letterFrequency[letter] || wordLetterFrequency[letter] > letterFrequency[letter]) {
+        const wordLetters = word.split('');
+        const usedLetters: { [key: string]: number } = {};
+
+        for (const letter of wordLetters) {
+          usedLetters[letter] = (usedLetters[letter] || 0) + 1;
+          if (!letterFrequency[letter] || usedLetters[letter] > letterFrequency[letter]) {
             set({ error: `Not enough letter "${letter.toUpperCase()}" available` });
             return;
           }
