@@ -455,13 +455,15 @@ export const useStore = create<GameState & GameActions>()(
           letterFrequency[lowerLetter] = (letterFrequency[lowerLetter] || 0) + 1;
         });
 
-        // Check if we have enough of each letter to form the word
-        const wordLetters = word.split('');
-        const usedLetters: { [key: string]: number } = {};
+        // Create a frequency map of letters in the word
+        const wordFrequency: { [key: string]: number } = {};
+        for (const letter of word) {
+          wordFrequency[letter] = (wordFrequency[letter] || 0) + 1;
+        }
 
-        for (const letter of wordLetters) {
-          usedLetters[letter] = (usedLetters[letter] || 0) + 1;
-          if (!letterFrequency[letter] || usedLetters[letter] > letterFrequency[letter]) {
+        // Check if we have enough of each letter
+        for (const letter in wordFrequency) {
+          if (!letterFrequency[letter] || wordFrequency[letter] > letterFrequency[letter]) {
             set({ error: `Not enough letter "${letter.toUpperCase()}" available` });
             return;
           }
