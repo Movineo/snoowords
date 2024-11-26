@@ -12,6 +12,7 @@ import { DailyChallenge } from './components/DailyChallenge';
 import { GameRules } from './components/GameRules';
 import { Leaderboard } from './components/Leaderboard';
 import { CommunityChallenge } from './components/CommunityChallenge';
+import { Achievements } from './components/Achievements';
 
 function App() {
   const { status, showRules, words, timeLeft, toggleRules, startGame, tick } = useStore();
@@ -58,7 +59,18 @@ function App() {
               name: 'Classic', 
               description: 'Classic mode', 
               duration: 60, 
-              icon: 'clock' 
+              icon: 'clock',
+              rules: {
+                minWordLength: 3,
+                maxWordLength: 15,
+                allowedCategories: ['all'],
+                bonusPoints: [
+                  {
+                    category: 'themed',
+                    multiplier: 2
+                  }
+                ]
+              }
             },
             duration: timeLeft
           });
@@ -93,6 +105,10 @@ function App() {
                         playerName={playerName}
                         onPlayerNameChange={setPlayerName}
                       />
+                      <Achievements />
+                      <div className="mt-6">
+                        <Leaderboard />
+                      </div>
                     </div>
                   )}
                   

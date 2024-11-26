@@ -334,29 +334,29 @@ export const useStore = create<GameState & GameActions>()(
           selectedLetters: [],
         });
 
-        // Fetch daily theme if not already set
-        if (!get().dailyTheme) {
-          themeService.getDailyTheme().then(theme => {
-            if (theme) {
-              const challenge: Challenge = {
-                id: theme.id,
-                title: 'Daily Theme Challenge',
-                description: theme.description,
-                theme: theme.theme,
-                start_date: theme.created_at,
-                end_date: theme.expires_at,
-                reward_karma: 100,
-                targetScore: 100,
-                participants: 0
-              };
+        // Always fetch a fresh theme when starting a game
+        themeService.getDailyTheme().then(theme => {
+          if (theme) {
+            const challenge: Challenge = {
+              id: theme.id,
+              title: 'Daily Theme Challenge',
+              description: theme.description,
+              theme: theme.theme,
+              start_date: theme.created_at,
+              end_date: theme.expires_at,
+              reward_karma: 100,
+              targetScore: 100,
+              participants: 0
+            };
 
-              set({
-                dailyTheme: theme.theme,
-                currentChallenge: challenge
-              });
-            }
-          });
-        }
+            set({
+              dailyTheme: theme.theme,
+              currentChallenge: challenge
+            });
+          }
+        }).catch(error => {
+          console.error('Failed to fetch theme:', error);
+        });
       },
 
       pauseGame: () => set({ status: 'paused' } as Partial<GameState>),
@@ -413,6 +413,30 @@ export const useStore = create<GameState & GameActions>()(
         if (state.status === 'playing') {
           if (state.timeLeft > 0) {
             set({ timeLeft: state.timeLeft - 1 } as Partial<GameState>);
+
+            // Check for theme updates every 10 seconds during gameplay
+            if (state.timeLeft % 10 === 0) {
+              themeService.getDailyTheme().then(theme => {
+                if (theme && theme.theme !== state.dailyTheme) {
+                  const challenge: Challenge = {
+                    id: theme.id,
+                    title: 'Daily Theme Challenge',
+                    description: theme.description,
+                    theme: theme.theme,
+                    start_date: theme.created_at,
+                    end_date: theme.expires_at,
+                    reward_karma: 100,
+                    targetScore: 100,
+                    participants: 0
+                  };
+
+                  set({
+                    dailyTheme: theme.theme,
+                    currentChallenge: challenge
+                  });
+                }
+              });
+            }
           } else {
             get().endGame();
           }
@@ -448,11 +472,11 @@ export const useStore = create<GameState & GameActions>()(
           return;
         }
 
-        // Create a frequency map of available letters
-        const letterFrequency: { [key: string]: number } = {};
+        // Create a frequency map of available letters in the game board
+        const boardFrequency: { [key: string]: number } = {};
         state.letters.forEach(letter => {
           const lowerLetter = letter.toLowerCase();
-          letterFrequency[lowerLetter] = (letterFrequency[lowerLetter] || 0) + 1;
+          boardFrequency[lowerLetter] = (boardFrequency[lowerLetter] || 0) + 1;
         });
 
         // Create a frequency map of letters in the word
@@ -461,10 +485,30 @@ export const useStore = create<GameState & GameActions>()(
           wordFrequency[letter] = (wordFrequency[letter] || 0) + 1;
         }
 
-        // Check if we have enough of each letter
+        // Check if the word can be formed with available letters
         for (const letter in wordFrequency) {
-          if (!letterFrequency[letter] || wordFrequency[letter] > letterFrequency[letter]) {
-            set({ error: `Not enough letter "${letter.toUpperCase()}" available` });
+          if (!boardFrequency[letter] || wordFrequency[letter] > boardFrequency[letter]) {
+            set({ error: `Not enough "${letter.toUpperCase()}" letters available` });
+            return;
+          }
+        }
+
+        // Get selected letters and their positions
+        const selectedLetters = state.selectedLetters.map(index => ({
+          letter: state.letters[index].toLowerCase(),
+          position: index
+        }));
+
+        // Create a frequency map of selected letters
+        const selectedFrequency: { [key: string]: number } = {};
+        selectedLetters.forEach(({ letter }) => {
+          selectedFrequency[letter] = (selectedFrequency[letter] || 0) + 1;
+        });
+
+        // Check if the selected letters match the word requirements
+        for (const letter in wordFrequency) {
+          if (selectedFrequency[letter] !== wordFrequency[letter]) {
+            set({ error: 'Selected letters do not match the word' });
             return;
           }
         }
@@ -483,7 +527,7 @@ export const useStore = create<GameState & GameActions>()(
           const newWord: Word = {
             word,
             points,
-            player: state.playerName
+            player: state.playerName || 'Guest'
           };
 
           // Add word to the list with proper typing
@@ -530,10 +574,14 @@ export const useStore = create<GameState & GameActions>()(
         const state = get();
         const { selectedLetters, letters } = state;
         
-        // Allow selecting the same letter position multiple times for repeated letters
-        // Don't clear selection when selecting a letter again
+        // Prevent selecting the same letter position twice
+        if (selectedLetters.includes(index)) {
+          return;
+        }
+        
         const newSelectedLetters = [...selectedLetters, index];
         const newWord = newSelectedLetters.map(i => letters[i]).join('');
+        
         set({ 
           selectedLetters: newSelectedLetters,
           currentWord: newWord.toUpperCase(),

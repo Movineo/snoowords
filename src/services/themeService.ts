@@ -10,8 +10,23 @@ export interface DailyTheme {
 }
 
 class ThemeService {
+  private cachedTheme: DailyTheme | null = null;
+  private lastCheck: Date | null = null;
+  private checkInterval = 5 * 60 * 1000; // Check every 5 minutes
+
   private async getCurrentTheme(): Promise<DailyTheme | null> {
     try {
+      // If we have a cached theme and it's been less than 5 minutes, return it
+      if (this.cachedTheme && this.lastCheck) {
+        const now = new Date();
+        const timeSinceLastCheck = now.getTime() - this.lastCheck.getTime();
+        
+        // If the theme hasn't expired and was checked recently, return cached
+        if (new Date(this.cachedTheme.expires_at) > now && timeSinceLastCheck < this.checkInterval) {
+          return this.cachedTheme;
+        }
+      }
+
       const now = new Date().toISOString();
       const { data, error } = await supabase
         .from('daily_themes')
@@ -26,6 +41,10 @@ class ThemeService {
         console.error('Error fetching current theme:', error);
         return null;
       }
+
+      // Update cache
+      this.cachedTheme = data;
+      this.lastCheck = new Date();
 
       return data;
     } catch (error) {
@@ -68,8 +87,14 @@ class ThemeService {
       }
     ];
 
-    // Pick a random theme
-    const randomTheme = themes[Math.floor(Math.random() * themes.length)];
+    // Pick a random theme, excluding the current theme if it exists
+    let randomTheme;
+    if (this.cachedTheme) {
+      const availableThemes = themes.filter(t => t.theme !== this.cachedTheme?.theme);
+      randomTheme = availableThemes[Math.floor(Math.random() * availableThemes.length)];
+    } else {
+      randomTheme = themes[Math.floor(Math.random() * themes.length)];
+    }
     
     // Create expiration date (end of current day in UTC)
     const now = new Date();
@@ -94,6 +119,10 @@ class ThemeService {
         return null;
       }
 
+      // Update cache with new theme
+      this.cachedTheme = data;
+      this.lastCheck = new Date();
+
       return data;
     } catch (error) {
       console.error('Error creating new theme:', error);
@@ -105,8 +134,8 @@ class ThemeService {
     // Try to get current theme
     let theme = await this.getCurrentTheme();
     
-    // If no current theme exists, create a new one
-    if (!theme) {
+    // If no current theme exists or theme has expired, create a new one
+    if (!theme || new Date(theme.expires_at) <= new Date()) {
       theme = await this.createNewTheme();
     }
 
