@@ -91,25 +91,54 @@ export const GameBoard: React.FC = () => {
         {/* Letters Grid */}
         <div className="w-full mb-4 sm:mb-6">
           <div className="grid grid-cols-4 gap-1.5 sm:gap-2 aspect-square w-full max-w-[min(400px,85vw)] mx-auto">
-            {letters.map((letter, index) => (
-              <button
-                key={index}
-                data-index={index}
-                onClick={() => handleLetterClick(index)}
-                className={`
-                  aspect-square flex items-center justify-center
-                  text-xl sm:text-2xl md:text-3xl font-bold rounded-lg
-                  transition-all transform hover:scale-105 active:scale-95
-                  ${
-                    selectedLetters.includes(index)
-                      ? 'bg-purple-600/80 text-white'
-                      : 'bg-white/10 hover:bg-white/20 text-white'
-                  }
-                `}
-              >
-                {letter}
-              </button>
-            ))}
+            {letters.map((letter, index) => {
+              const isSelected = selectedLetters.includes(index);
+              const selectionOrder = selectedLetters.indexOf(index) + 1;
+              const isLastSelected = selectedLetters.length > 0 && selectedLetters[selectedLetters.length - 1] === index;
+              
+              return (
+                <button
+                  key={index}
+                  data-index={index}
+                  onTouchStart={(e) => {
+                    e.preventDefault(); // Prevent default touch behavior
+                    handleLetterClick(index);
+                  }}
+                  onClick={() => handleLetterClick(index)}
+                  className={`
+                    relative aspect-square flex items-center justify-center
+                    text-xl sm:text-2xl md:text-3xl font-bold rounded-lg
+                    transition-all transform active:scale-95
+                    ${
+                      isSelected
+                        ? 'bg-purple-600 text-white shadow-lg ring-2 ring-purple-400'
+                        : 'bg-white/10 hover:bg-white/20 text-white'
+                    }
+                    ${isLastSelected ? 'ring-4 ring-purple-300 animate-pulse' : ''}
+                    select-none touch-manipulation
+                    cursor-pointer
+                    hover:brightness-110
+                  `}
+                  aria-label={`${letter} - ${isSelected ? 'Selected' : 'Not selected'}${isSelected ? ` (${selectionOrder})` : ''}`}
+                  aria-pressed={isSelected}
+                >
+                  {letter}
+                  {isSelected && (
+                    <span className={`
+                      absolute -top-1 -right-1 
+                      bg-purple-400 text-white 
+                      text-xs w-5 h-5 
+                      flex items-center justify-center 
+                      rounded-full
+                      transition-all
+                      ${isLastSelected ? 'animate-bounce' : ''}
+                    `}>
+                      {selectionOrder}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
 

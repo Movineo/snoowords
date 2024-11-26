@@ -448,17 +448,21 @@ export const useStore = create<GameState & GameActions>()(
           return;
         }
 
-        // Validate that the word only uses available letters and in correct quantities
-        const availableLetters = [...state.letters];
-        const wordLetters = word.split('');
-        
-        for (const letter of wordLetters) {
-          const index = availableLetters.indexOf(letter.toLowerCase());
-          if (index === -1) {
-            set({ error: 'Invalid word: uses unavailable letters' });
+        // Create a frequency map of available letters
+        const letterFrequency: { [key: string]: number } = {};
+        state.letters.forEach(letter => {
+          const lowerLetter = letter.toLowerCase();
+          letterFrequency[lowerLetter] = (letterFrequency[lowerLetter] || 0) + 1;
+        });
+
+        // Check if we have enough of each letter to form the word
+        const wordLetterFrequency: { [key: string]: number } = {};
+        for (const letter of word) {
+          wordLetterFrequency[letter] = (wordLetterFrequency[letter] || 0) + 1;
+          if (!letterFrequency[letter] || wordLetterFrequency[letter] > letterFrequency[letter]) {
+            set({ error: `Not enough letter "${letter.toUpperCase()}" available` });
             return;
           }
-          availableLetters.splice(index, 1);
         }
 
         // Validate word against dictionary
@@ -521,12 +525,27 @@ export const useStore = create<GameState & GameActions>()(
       selectLetter: (index: number) => {
         const state = get();
         const { selectedLetters, letters } = state;
-        // Allow selecting the same letter multiple times
+        
+        // If letter is already selected, unselect it and all letters after it
+        const existingIndex = selectedLetters.indexOf(index);
+        if (existingIndex !== -1) {
+          const newSelectedLetters = selectedLetters.slice(0, existingIndex);
+          const newWord = newSelectedLetters.map(i => letters[i]).join('');
+          set({ 
+            selectedLetters: newSelectedLetters,
+            currentWord: newWord.toUpperCase(),
+            error: null
+          });
+          return;
+        }
+        
+        // Allow selecting the same letter position multiple times for repeated letters
         const newSelectedLetters = [...selectedLetters, index];
         const newWord = newSelectedLetters.map(i => letters[i]).join('');
         set({ 
           selectedLetters: newSelectedLetters,
-          currentWord: newWord.toUpperCase()
+          currentWord: newWord.toUpperCase(),
+          error: null
         });
       },
 
