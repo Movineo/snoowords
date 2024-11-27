@@ -134,12 +134,6 @@ function App() {
                       <Leaderboard />
                     </div>
                   )}
-                  
-                  {status === 'idle' && !words.length && (
-                    <div className="mt-6">
-                      <Leaderboard />
-                    </div>
-                  )}
                 </>
               } 
             />

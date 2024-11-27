@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Share, Trophy, Award } from 'lucide-react';
+import { Share, Trophy, Award, Star } from 'lucide-react';
 import { useStore } from '../store/gameStore';
 
 export const ShareResults: React.FC = () => {
@@ -88,15 +88,34 @@ export const ShareResults: React.FC = () => {
 
         {/* Word List */}
         <div className="mt-6">
-          <h3 className="text-lg font-medium mb-3">Words Found:</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+          <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
+            <Award className="w-5 h-5 text-purple-400" />
+            Words Found:
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {words.map((word, index) => (
               <div
                 key={index}
-                className="bg-white/5 rounded px-3 py-1.5 flex items-center justify-between backdrop-blur-sm"
+                className={`
+                  flex items-center justify-between p-3 rounded-lg
+                  ${word.themed ? 'bg-purple-500/20 border border-purple-500/30' : 'bg-white/5'}
+                  backdrop-blur-sm transition-all hover:scale-102
+                `}
               >
-                <span className="font-medium truncate">{word.word}</span>
-                <span className="text-sm text-purple-400 ml-2">+{word.points}</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-lg font-medium">{word.word}</span>
+                  {word.themed && (
+                    <span className="text-xs bg-purple-500/30 text-purple-200 px-2 py-0.5 rounded">
+                      Theme Bonus
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-lg font-bold text-purple-300">+{word.points}</span>
+                  {word.points >= 10 && (
+                    <Star className="w-4 h-4 text-yellow-400" />
+                  )}
+                </div>
               </div>
             ))}
           </div>

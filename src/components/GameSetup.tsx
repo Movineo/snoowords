@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useStore } from '../store/gameStore';
 import { LogIn, User, Play } from 'lucide-react';
 import { REDDIT_CONFIG, REDDIT_ENDPOINTS } from '../config/reddit';
+import { animationService } from '../services/animationService'; // Import animationService
 
 interface GameSetupProps {
   onStartGame: () => void;
@@ -17,11 +18,13 @@ export const GameSetup: React.FC<GameSetupProps> = ({ onStartGame, playerName, o
     e.preventDefault();
     setError(null);
     setPlayerName(playerName);
+    animationService.playClickSound(); // Add click sound
     onStartGame();
   };
 
   const handleRedditLogin = () => {
     try {
+      animationService.playClickSound(); // Add click sound
       const state = Math.random().toString(36).substring(7);
       localStorage.setItem('reddit_auth_state', state);
 

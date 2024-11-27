@@ -26,7 +26,8 @@ export const GameBoard: React.FC = () => {
     setShowSubredditPacks,
     showCommunityPuzzles,
     setShowCommunityPuzzles,
-    clearSelection
+    clearSelection,
+    submitWord
   } = useStore();
 
   useEffect(() => {
@@ -49,6 +50,16 @@ export const GameBoard: React.FC = () => {
         repeat: 1
       });
     }
+  };
+
+  const handleClearSelection = () => {
+    animationService.playClickSound();
+    clearSelection();
+  };
+
+  const handleSubmitWord = () => {
+    animationService.playClickSound();
+    submitWord();
   };
 
   return (
@@ -159,9 +170,7 @@ export const GameBoard: React.FC = () => {
           {/* Clear Selection Button */}
           <div className="mt-4 flex justify-center">
             <button
-              onClick={() => {
-                clearSelection();
-              }}
+              onClick={handleClearSelection}
               className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
             >
               Clear Selection

@@ -5,6 +5,7 @@ import { Word } from '../types';
 import { useStore } from '../store/gameStore';
 import { redditService } from '../services/redditService';
 import { toast } from 'react-hot-toast';
+import { animationService } from '../services/animationService';
 
 interface GameOverProps {
   words: Word[];
@@ -26,16 +27,25 @@ export const GameOver: React.FC<GameOverProps> = ({
     ''
   );
 
+  const handlePlayAgain = () => {
+    animationService.playClickSound();
+    onPlayAgain();
+  };
+
   const handleShare = async () => {
     if (!redditUser.isAuthenticated) {
       toast.error('Please log in with Reddit to share your score');
+      animationService.playIncorrectSound();
       return;
     }
 
     try {
       await redditService.submitScore(totalScore, words.map(w => w.word));
+      animationService.playCelebrationSound();
+      toast.success('Score shared successfully!');
     } catch (error) {
       console.error('Error sharing score:', error);
+      animationService.playIncorrectSound();
       toast.error('Failed to share score');
     }
   };
@@ -142,7 +152,7 @@ export const GameOver: React.FC<GameOverProps> = ({
           </div>
         )}
         <button
-          onClick={onPlayAgain}
+          onClick={handlePlayAgain}
           className="px-8 py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg transition-colors"
         >
           Play Again

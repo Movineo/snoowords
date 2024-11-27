@@ -8,6 +8,7 @@ import { gameService } from '../services/gameService';
 import { themeService } from '../services/themeService';
 import { generateLetters } from '../utils/gameUtils';
 import { mockSubredditPacks } from '../services/mockData';
+import { animationService } from '../services/animationService'; // Import animationService
 
 type GameStatus = 'idle' | 'playing' | 'paused' | 'ended';
 
@@ -118,9 +119,25 @@ interface GameActions {
 
 const INITIAL_ACHIEVEMENTS = [
   {
+    id: 'wordsmith',
+    name: 'Wordsmith',
+    description: 'Find your first 5-letter word',
+    icon: 'silver' as AchievementType,
+    unlocked: false,
+    progress: 0,
+  },
+  {
+    id: 'theme_master',
+    name: 'Theme Master',
+    description: 'Find 3 theme-related words',
+    icon: 'silver' as AchievementType,
+    unlocked: false,
+    progress: 0,
+  },
+  {
     id: 'silver',
     name: 'Silver Award',
-    description: 'Earn 100 karma',
+    description: 'Score 50 points in one game',
     icon: 'silver' as AchievementType,
     unlocked: false,
     progress: 0,
@@ -128,7 +145,7 @@ const INITIAL_ACHIEVEMENTS = [
   {
     id: 'gold',
     name: 'Gold Award',
-    description: 'Earn 500 karma',
+    description: 'Score 100 points in one game',
     icon: 'gold' as AchievementType,
     unlocked: false,
     progress: 0,
@@ -136,7 +153,7 @@ const INITIAL_ACHIEVEMENTS = [
   {
     id: 'platinum',
     name: 'Platinum Award',
-    description: 'Earn 1000 karma and maintain a 5-word streak',
+    description: 'Score 200 points and find a 7+ letter word',
     icon: 'platinum' as AchievementType,
     unlocked: false,
     progress: 0,
@@ -144,7 +161,7 @@ const INITIAL_ACHIEVEMENTS = [
   {
     id: 'ternion',
     name: 'Ternion Award',
-    description: 'Earn 5000 karma and activate all power-ups',
+    description: 'Score 500 points and maintain a 3-word streak',
     icon: 'ternion' as AchievementType,
     unlocked: false,
     progress: 0,
@@ -271,7 +288,7 @@ export const useStore = create<GameState & GameActions>()(
         const newWord: Word = {
           word,
           points: word.length,
-          player: state.playerName || 'Anonymous',
+          player: state.playerName || 'Anonymous'
         };
         set({
           words: [...state.words, newWord],
@@ -301,15 +318,60 @@ export const useStore = create<GameState & GameActions>()(
 
       checkAchievements: () => {
         const state = get();
+
+        // Track theme-related words
+        const themeWords = state.words.filter(w => w.themed).length;
+        
+        // Update achievement progress
         const achievements = state.achievements.map(achievement => {
-          if (!achievement.unlocked && achievement.progress >= 100) {
-            showAchievementToast(achievement.name);
-            return { ...achievement, unlocked: true };
+          let progress = 0;
+
+          switch (achievement.id) {
+            case 'wordsmith':
+              // Check for 5-letter words
+              progress = state.words.some(w => w.word.length >= 5) ? 100 : 0;
+              break;
+
+            case 'theme_master':
+              // Progress based on theme-related words (need 3)
+              progress = Math.min((themeWords / 3) * 100, 100);
+              break;
+
+            case 'silver':
+              // Progress towards 50 points
+              progress = Math.min((state.score / 50) * 100, 100);
+              break;
+
+            case 'gold':
+              // Progress towards 100 points
+              progress = Math.min((state.score / 100) * 100, 100);
+              break;
+
+            case 'platinum':
+              // Need both 200 points and a 7+ letter word
+              const hasLongWord = state.words.some(w => w.word.length >= 7);
+              const scoreProgress = Math.min((state.score / 200) * 100, 100);
+              progress = hasLongWord ? scoreProgress : Math.min(scoreProgress, 90);
+              break;
+
+            case 'ternion':
+              // Need 500 points and 3-word streak
+              const streakProgress = Math.min((state.streak / 3) * 100, 100);
+              const highScoreProgress = Math.min((state.score / 500) * 100, 100);
+              progress = Math.min(streakProgress, highScoreProgress);
+              break;
           }
-          return achievement;
+
+          if (!achievement.unlocked && progress >= 100) {
+            showAchievementToast(achievement.name);
+            animationService.playCelebrationSound();
+            return { ...achievement, progress: 100, unlocked: true };
+          }
+
+          return { ...achievement, progress };
         });
 
-        if (achievements !== state.achievements) {
+        if (achievements.some((a, i) => a.progress !== state.achievements[i].progress)) {
           set({ achievements } as Partial<GameState>);
         }
       },
@@ -450,100 +512,114 @@ export const useStore = create<GameState & GameActions>()(
         } as Partial<GameState>);
       },
 
-      submitWord: () => {
+      submitWord: async () => {
         const state = get();
         const word = state.currentWord.toLowerCase();
 
-        // Check if word is empty
+        // Get current leaderboard scores
+        let dailyTopScore = 0;
+        let allTimeTopScore = 0;
+        try {
+          // Get daily top score
+          const today = new Date().toISOString().split('T')[0];
+          const { data: dailyData } = await supabase
+            .from('leaderboard')
+            .select('score')
+            .gte('created_at', today)
+            .order('score', { ascending: false })
+            .limit(1)
+            .single();
+          
+          if (dailyData) {
+            dailyTopScore = dailyData.score;
+            console.log('Current daily top score:', dailyTopScore);
+          }
+
+          // Get all-time top score
+          const { data: allTimeData } = await supabase
+            .from('leaderboard')
+            .select('score')
+            .order('score', { ascending: false })
+            .limit(1)
+            .single();
+          
+          if (allTimeData) {
+            allTimeTopScore = allTimeData.score;
+            console.log('Current all-time top score:', allTimeTopScore);
+          }
+        } catch (error) {
+          console.error('Error fetching leaderboard:', error);
+        }
+
+        // Validation checks
         if (!word) {
           set({ error: 'Please enter a word' });
+          animationService.playErrorSound();
           return;
         }
 
-        // Check if word is too short
         if (word.length < 3) {
           set({ error: 'Word must be at least 3 letters long' });
+          animationService.playErrorSound();
           return;
         }
 
-        // Check if word has already been used
         if (state.words.some(w => w.word.toLowerCase() === word)) {
-          set({ error: 'You have already used this word' });
+          set({ error: 'Word already used' });
+          animationService.playErrorSound();
           return;
         }
 
-        // Create a frequency map of available letters in the game board
-        const boardFrequency: { [key: string]: number } = {};
-        state.letters.forEach(letter => {
-          const lowerLetter = letter.toLowerCase();
-          boardFrequency[lowerLetter] = (boardFrequency[lowerLetter] || 0) + 1;
-        });
-
-        // Create a frequency map of letters in the word
-        const wordFrequency: { [key: string]: number } = {};
-        for (const letter of word) {
-          wordFrequency[letter] = (wordFrequency[letter] || 0) + 1;
+        // Calculate points (1 point per letter, bonus for theme-related words)
+        let points = word.length;
+        const isThemeBonus = Boolean(state.dailyTheme && word.toLowerCase().includes(state.dailyTheme.toLowerCase()));
+        
+        if (isThemeBonus) {
+          points *= 2; // Double points for theme-related words
+          animationService.playPowerupSound();
+        } else {
+          animationService.playSuccessSound();
         }
 
-        // Check if the word can be formed with available letters
-        for (const letter in wordFrequency) {
-          if (!boardFrequency[letter] || wordFrequency[letter] > boardFrequency[letter]) {
-            set({ error: `Not enough "${letter.toUpperCase()}" letters available` });
-            return;
+        if (points >= 10) {
+          animationService.playComboSound();
+        }
+
+        const newScore = state.score + points;
+
+        // Check if player took the lead in either leaderboard
+        if ((dailyTopScore > 0 && newScore > dailyTopScore) || 
+            (allTimeTopScore > 0 && newScore > allTimeTopScore)) {
+          console.log('Player took the lead! Playing celebration sound');
+          animationService.playCelebrationSound();
+          
+          if (newScore > allTimeTopScore) {
+            showAchievementToast('New All-Time High Score! 🏆');
+          } else {
+            showAchievementToast('New Daily High Score! 🌟');
           }
         }
 
-        // Get selected letters and their positions
-        const selectedLetters = state.selectedLetters.map(index => ({
-          letter: state.letters[index].toLowerCase(),
-          position: index
-        }));
+        // Add word to list
+        const newWord: Word = {
+          word,
+          points,
+          themed: isThemeBonus || undefined,
+          player: state.playerName || 'Guest'
+        };
 
-        // Create a frequency map of selected letters
-        const selectedFrequency: { [key: string]: number } = {};
-        selectedLetters.forEach(({ letter }) => {
-          selectedFrequency[letter] = (selectedFrequency[letter] || 0) + 1;
+        set({
+          words: [...state.words, newWord],
+          currentWord: '',
+          selectedLetters: [],
+          error: null,
+          score: newScore
         });
 
-        // Check if the selected letters match the word requirements
-        for (const letter in wordFrequency) {
-          if (selectedFrequency[letter] !== wordFrequency[letter]) {
-            set({ error: 'Selected letters do not match the word' });
-            return;
-          }
+        // Check for level up
+        if (state.words.length % 5 === 0) {
+          animationService.playLevelUpSound();
         }
-
-        // Validate word against dictionary
-        gameService.validateWord(word).then(isValid => {
-          if (!isValid) {
-            set({ error: 'Not a valid word' });
-            return;
-          }
-
-          // Calculate points (you can adjust the scoring formula)
-          const points = Math.pow(2, word.length - 2);
-
-          // Create new word object with proper type
-          const newWord: Word = {
-            word,
-            points,
-            player: state.playerName || 'Guest'
-          };
-
-          // Add word to the list with proper typing
-          set((state: GameState) => ({
-            words: [...state.words, newWord],
-            score: state.score + points,
-            currentWord: '',
-            selectedLetters: [],
-            error: null,
-            streak: state.streak + 1,
-            longestStreak: Math.max(state.streak + 1, state.longestStreak)
-          }));
-
-          // Check for achievements
-          get().checkAchievements();
-        });
       },
 
       toggleRules: () =>
