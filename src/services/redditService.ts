@@ -22,14 +22,19 @@ interface RedditUserResponse {
 
 export interface RedditWordPack {
   id: string;
-  title: string;
-  description: string;
+  name: string;
+  theme: string;
   subreddit: string;
   words: string[];
-  created_by: string;
-  created_at: string;
-  upvotes: number;
+  category: string;
   difficulty: 'easy' | 'medium' | 'hard';
+  created_at: string;
+  updated_at: string;
+  total_words: number;
+  average_word_length: number;
+  description?: string;
+  upvotes: number;
+  creator: string;
 }
 
 export interface SubredditBattle {
@@ -63,6 +68,24 @@ export class RedditService {
   private accessToken: string | null = null;
   private refreshToken: string | null = null;
   private currentUserId: string | null = null;
+
+  // Configuration options
+  private defaultSubreddits = ['popular', 'todayilearned', 'science', 'worldnews'];
+  private defaultTimeframe: 'day' | 'week' = 'day';
+  private defaultMinWordLength = 3;
+  private defaultMaxWords = 50;
+
+  public async configure(options: {
+    subreddits?: string[];
+    timeframe?: 'day' | 'week';
+    minWordLength?: number;
+    maxWords?: number;
+  }) {
+    this.defaultSubreddits = options.subreddits || this.defaultSubreddits;
+    this.defaultTimeframe = options.timeframe || this.defaultTimeframe;
+    this.defaultMinWordLength = options.minWordLength || this.defaultMinWordLength;
+    this.defaultMaxWords = options.maxWords || this.defaultMaxWords;
+  }
 
   public getAuthUrl(): string {
     if (!this.clientId || !this.clientSecret) {
@@ -231,10 +254,7 @@ export class RedditService {
         .eq('id', userId)
         .single();
 
-      if (error) {
-        console.error('Error fetching user data:', error);
-        return null;
-      }
+      if (error) throw error;
 
       if (!user) {
         console.error('No user found with ID:', userId);
@@ -492,26 +512,41 @@ export class RedditService {
     words: string[],
     difficulty: 'easy' | 'medium' | 'hard'
   ): Promise<RedditWordPack> {
-    const user = (await supabase.auth.getUser()).data.user;
-    if (!user) throw new Error('User not logged in');
+    const user = await this.getCurrentUserData();
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
 
-    const { data, error } = await supabase
-      .from('word_packs')
-      .insert([
-        {
-          title,
-          description,
-          subreddit,
-          words,
-          created_by: user.id,
-          difficulty,
-        },
-      ])
-      .select()
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('word_packs')
+        .insert([
+          {
+            id: crypto.randomUUID(),
+            name: title,
+            theme: description,
+            subreddit,
+            words,
+            category: 'community',
+            difficulty,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            total_words: words.length,
+            average_word_length: words.reduce((sum, word) => sum + word.length, 0) / words.length,
+            description,
+            upvotes: 0,
+            creator: user.id,
+          },
+        ])
+        .select()
+        .single();
 
-    if (error) throw error;
-    return data as RedditWordPack;
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error creating word pack:', error);
+      throw error;
+    }
   }
 
   public async getWordPacks(filter: 'popular' | 'new' | 'trending' = 'popular'): Promise<RedditWordPack[]> {
@@ -542,60 +577,50 @@ export class RedditService {
   }
 
   public async getTrendingWords(options: {
-    subreddits?: string[],
-    timeframe?: 'day' | 'week',
-    minWordLength?: number,
+    subreddits?: string[];
+    timeframe?: 'day' | 'week';
+    minWordLength?: number;
     maxWords?: number
   } = {}): Promise<RedditWordPack[]> {
     const {
-      subreddits = ['popular', 'todayilearned', 'science', 'worldnews'],
-      timeframe = 'day',
-      minWordLength = 3,
-      maxWords = 50
+      subreddits = this.defaultSubreddits,
+      timeframe = this.defaultTimeframe,
+      minWordLength = this.defaultMinWordLength,
+      maxWords = this.defaultMaxWords
     } = options;
 
     const wordPacks: RedditWordPack[] = [];
 
     for (const subreddit of subreddits) {
       try {
-        const posts = await this.fetchTrendingPosts(subreddit);
-        const allWords = new Set<string>();
-        const wordFrequency: { [key: string]: number } = {};
-
-        // Process all posts
-        posts.forEach(post => {
-          const titleWords = this.extractWords(post);
-          titleWords.forEach(word => {
-            if (word.length >= minWordLength) {
-              allWords.add(word);
-              wordFrequency[word] = (wordFrequency[word] || 0) + 1;
-            }
-          });
-        });
-
-        // Sort words by frequency and length
-        const sortedWords = Array.from(allWords)
-          .sort((a, b) => {
-            const freqDiff = wordFrequency[b] - wordFrequency[a];
-            return freqDiff !== 0 ? freqDiff : b.length - a.length;
-          })
+        const words = await this.fetchTrendingPosts(subreddit);
+        const filteredWords = words
+          .filter(word => word.length >= minWordLength)
           .slice(0, maxWords);
 
+        const sortedWords = [...new Set(filteredWords)].sort();
+
         if (sortedWords.length > 0) {
+          const now = new Date().toISOString();
           wordPacks.push({
             id: `${subreddit}-${Date.now()}`,
-            title: `Trending words from r/${subreddit}`,
-            description: `Trending words from r/${subreddit}`,
+            name: `Trending words from r/${subreddit}`,
+            theme: `Top words from r/${subreddit} in the last ${timeframe}`,
             subreddit,
             words: sortedWords,
-            created_by: '',
-            created_at: new Date().toISOString(),
+            category: 'trending',
+            difficulty: 'medium',
+            created_at: now,
+            updated_at: now,
+            total_words: sortedWords.length,
+            average_word_length: sortedWords.reduce((sum, word) => sum + word.length, 0) / sortedWords.length,
+            description: `Words trending on r/${subreddit} in the last ${timeframe}`,
             upvotes: 0,
-            difficulty: 'medium'
+            creator: 'system'
           });
         }
       } catch (error) {
-        console.error(`Error fetching words from r/${subreddit}:`, error);
+        console.error(`Error fetching trending words from r/${subreddit}:`, error);
       }
     }
 
@@ -694,24 +719,34 @@ export class RedditService {
   }
 
   public async generateSubredditWordPack(subreddits: string[]): Promise<RedditWordPack> {
+    // Fetch words from each subreddit
     const allWords: string[] = [];
-  
     for (const subreddit of subreddits) {
-      const posts = await this.fetchTrendingPosts(subreddit);
-      const words = posts.flatMap(post => this.extractWords(post))
-        .filter(word => word.length >= 3)
-        .slice(0, 50); // Take top 50 words
-      allWords.push(...words);
+      try {
+        const words = await this.fetchTrendingPosts(subreddit);
+        allWords.push(...words);
+      } catch (error) {
+        console.error(`Error fetching words from r/${subreddit}:`, error);
+      }
     }
 
-    // Create unique word pack
-    return this.createWordPack(
-      `${subreddits.join(' vs ')} Battle Pack`,
-      `Special word pack for the battle between r/${subreddits.join(' and r/')}`,
-      subreddits.join('+'),
-      [...new Set(allWords)],
-      'medium'
-    );
+    const now = new Date().toISOString();
+    return {
+      id: `battle-${crypto.randomUUID()}`,
+      name: `${subreddits.join(' vs ')} Battle Pack`,
+      theme: 'Subreddit Battle',
+      subreddit: subreddits.join('+'),
+      words: [...new Set(allWords)],
+      category: 'battle',
+      difficulty: 'medium',
+      created_at: now,
+      updated_at: now,
+      total_words: allWords.length,
+      average_word_length: allWords.reduce((sum, word) => sum + word.length, 0) / allWords.length,
+      description: `Special word pack for the battle between r/${subreddits.join(' and r/')}`,
+      upvotes: 0,
+      creator: 'system'
+    };
   }
 
   public async joinBattle(battleId: string, userId: string, subreddit: string): Promise<void> {

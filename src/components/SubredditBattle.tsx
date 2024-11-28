@@ -63,7 +63,8 @@ export const SubredditBattle: React.FC = () => {
       setLoading(true);
       const battle = await redditService.createSubredditBattle(subreddit1, subreddit2);
       setBattles([battle, ...battles]);
-      toast.success('Battle created! 🎮');
+      setSelectedBattle(battle);
+      setMode('play');
       
       sounds.battleCreate();
       confetti({
@@ -71,6 +72,7 @@ export const SubredditBattle: React.FC = () => {
         spread: 70,
         origin: { y: 0.6 }
       });
+      toast.success('Battle created! 🎮');
     } catch (error) {
       console.error('Error creating battle:', error);
       if (error instanceof Error && error.message.includes('Not authenticated')) {
@@ -84,8 +86,8 @@ export const SubredditBattle: React.FC = () => {
   };
 
   const handleJoinBattle = async (battle: SubredditBattleType) => {
-    if (!redditUser?.isAuthenticated) {
-      toast.error('Please login with Reddit first to join a battle');
+    if (!redditUser) {
+      toast.error('Please login to join battles');
       return;
     }
 
@@ -133,7 +135,7 @@ export const SubredditBattle: React.FC = () => {
     </div>;
   }
 
-  if (selectedBattle) {
+  if (mode === 'play' && selectedBattle) {
     return (
       <div className="space-y-4">
         <AnimatePresence mode="wait">
@@ -148,7 +150,10 @@ export const SubredditBattle: React.FC = () => {
                 r/{selectedBattle.subreddit1} vs r/{selectedBattle.subreddit2}
               </h2>
               <button
-                onClick={() => setSelectedBattle(null)}
+                onClick={() => {
+                  setSelectedBattle(null);
+                  setMode('list');
+                }}
                 className="px-4 py-2 text-sm bg-gray-200 rounded-md hover:bg-gray-300"
               >
                 Back to Battles
@@ -206,6 +211,67 @@ export const SubredditBattle: React.FC = () => {
     );
   }
 
+  if (mode === 'spectate' && selectedBattle) {
+    return (
+      <div className="space-y-4">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key="spectate-battle"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+          >
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold">
+                Spectating: r/{selectedBattle.subreddit1} vs r/{selectedBattle.subreddit2}
+              </h2>
+              <button
+                onClick={() => {
+                  setSelectedBattle(null);
+                  setMode('list');
+                }}
+                className="px-4 py-2 text-sm bg-gray-200 rounded-md hover:bg-gray-300"
+              >
+                Back to Battles
+              </button>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div className="p-4 bg-blue-100 rounded-lg">
+                <h3 className="font-bold">r/{selectedBattle.subreddit1}</h3>
+                <p className="text-2xl flex items-center gap-2">
+                  <Trophy className="w-5 h-5" />
+                  {selectedBattle.scores[selectedBattle.subreddit1]} points
+                </p>
+                <p className="flex items-center gap-2">
+                  <Users className="w-4 h-4" />
+                  {selectedBattle.participants[selectedBattle.subreddit1]?.length || 0} players
+                </p>
+              </div>
+              <div className="p-4 bg-red-100 rounded-lg">
+                <h3 className="font-bold">r/{selectedBattle.subreddit2}</h3>
+                <p className="text-2xl flex items-center gap-2">
+                  <Trophy className="w-5 h-5" />
+                  {selectedBattle.scores[selectedBattle.subreddit2]} points
+                </p>
+                <p className="flex items-center gap-2">
+                  <Users className="w-4 h-4" />
+                  {selectedBattle.participants[selectedBattle.subreddit2]?.length || 0} players
+                </p>
+              </div>
+            </div>
+
+            <div className="opacity-75 pointer-events-none">
+              <GameBoard
+                wordPack={selectedBattle.wordPack}
+              />
+            </div>
+          </motion.div>
+        </AnimatePresence>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4 p-2 sm:p-4">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -216,7 +282,12 @@ export const SubredditBattle: React.FC = () => {
               <span className="hidden sm:inline">Login with Reddit to participate</span>
               <span className="sm:hidden">Login to participate</span>
               <button
-                onClick={() => redditService.getAuthUrl()}
+                onClick={() => {
+                  const authUrl = redditService.getAuthUrl();
+                  if (authUrl) {
+                    window.location.href = authUrl;
+                  }
+                }}
                 className="px-3 py-1 bg-yellow-200 rounded-md hover:bg-yellow-300 transition-colors whitespace-nowrap"
               >
                 Login
@@ -263,7 +334,11 @@ export const SubredditBattle: React.FC = () => {
                     <span className="hidden sm:inline">Spectate</span>
                   </button>
                   <button
-                    onClick={() => handleJoinBattle(battle)}
+                    onClick={() => {
+                      setSelectedBattle(battle);
+                      setMode('play');
+                      handleJoinBattle(battle);
+                    }}
                     className={`px-3 sm:px-4 py-2 rounded-md flex items-center gap-2 flex-1 sm:flex-none justify-center sm:justify-start ${
                       redditUser?.isAuthenticated
                         ? 'bg-green-500 text-white hover:bg-green-600'

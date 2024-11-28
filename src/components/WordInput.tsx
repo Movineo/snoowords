@@ -12,9 +12,8 @@ export const WordInput: React.FC = () => {
   useEffect(() => {
     const word = selectedLetters.map(index => letters[index]).join('');
     setInputValue(word);
-    setCurrentWord(word);
     setShowError(false);
-  }, [selectedLetters, letters, setCurrentWord]);
+  }, [selectedLetters, letters]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

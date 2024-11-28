@@ -18,8 +18,9 @@ export const VoiceCommands: React.FC = () => {
   const store = useGameStore();
 
   useEffect(() => {
+    if (!isListening) return;
+    
     setIsSupported(voiceService.isSupported());
-
     const handleVoiceCommand = async (event: Event) => {
       const customEvent = event as CustomEvent<{ transcript: string }>;
       const command = customEvent.detail.transcript.trim().toLowerCase();
@@ -96,11 +97,11 @@ export const VoiceCommands: React.FC = () => {
       }
     };
 
-    window.addEventListener('voice-command', handleVoiceCommand);
+    document.addEventListener('voiceCommand', handleVoiceCommand);
     return () => {
-      window.removeEventListener('voice-command', handleVoiceCommand);
+      document.removeEventListener('voiceCommand', handleVoiceCommand);
     };
-  }, [store]);
+  }, [isListening, store]);
 
   const toggleVoiceCommands = () => {
     if (isListening) {

@@ -94,12 +94,16 @@ export const Header: React.FC<HeaderProps> = ({ onShowRules }) => {
               </div>
             ) : (
               <button
-                onClick={() => redditService.getAuthUrl()}
+                onClick={() => {
+                  const authUrl = redditService.getAuthUrl();
+                  if (authUrl) {
+                    window.location.href = authUrl;
+                  }
+                }}
                 className="inline-flex items-center px-2 sm:px-4 py-1.5 sm:py-2 text-sm sm:text-base font-medium text-white bg-orange-500 hover:bg-orange-600 rounded-md transition-colors"
               >
                 <LogIn className="h-4 w-4 sm:h-5 sm:w-5 mr-1 sm:mr-2" />
                 <span className="hidden sm:inline">Login with Reddit</span>
-                <span className="sm:hidden">Login</span>
               </button>
             )}
           </div>

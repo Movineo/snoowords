@@ -13,7 +13,7 @@ export const REDDIT_CONFIG = {
   CLIENT_SECRET: getRequiredEnvVar('VITE_REDDIT_CLIENT_SECRET'),
   REDIRECT_URI: import.meta.env.VITE_REDDIT_REDIRECT_URI || 'http://localhost:5173/auth/callback',
   SUBREDDIT: 'SnooWords',
-  SCOPES: ['identity', 'submit', 'read', 'history']
+  SCOPES: ['identity', 'read']
 } as const;
 
 export const REDDIT_ENDPOINTS = {
