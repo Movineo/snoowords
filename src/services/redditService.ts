@@ -187,6 +187,11 @@ export class RedditService {
             created_at: new Date(userResponse.created_utc * 1000).toISOString(),
             access_token,
             refresh_token,
+            preferences: {
+              soundEnabled: true,
+              theme: 'default'
+            },
+            achievements: {}
           },
           {
             onConflict: 'id',
@@ -211,7 +216,7 @@ export class RedditService {
         avatarUrl: userResponse.icon_img,
         karma: userResponse.total_karma,
         created_at: new Date(userResponse.created_utc * 1000).toISOString(),
-        achievements: {},  // Initialize with empty achievements
+        achievements: {},
         preferences: {
           soundEnabled: true,
           theme: 'default'
