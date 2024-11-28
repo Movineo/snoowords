@@ -1,4 +1,5 @@
 import { supabase } from '../config/supabase';
+import { CommunityPuzzle } from '../types/game';
 
 export interface DailyTheme {
   id: string;
@@ -155,6 +156,41 @@ class ThemeService {
     }
 
     return 1;
+  }
+
+  public async getPuzzles(category: 'popular' | 'new' | 'trending'): Promise<CommunityPuzzle[]> {
+    try {
+      const { data, error } = await supabase
+        .from('community_puzzles')
+        .select('*')
+        .eq('category', category)
+        .order('upvotes', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching puzzles:', error);
+        return [];
+      }
+
+      return data.map(puzzle => ({
+        id: puzzle.id,
+        title: puzzle.title || '',
+        description: puzzle.description || '',
+        creator: puzzle.creator || '',
+        plays: puzzle.plays || 0,
+        difficulty: puzzle.difficulty || 'Medium',
+        words: puzzle.words || [],
+        upvotes: puzzle.upvotes || 0,
+        dateCreated: puzzle.created_at,
+        category: puzzle.category || 'new',
+        minWordLength: puzzle.min_word_length || 3,
+        maxWordLength: puzzle.max_word_length || 15,
+        timeLimit: puzzle.time_limit || 180,
+        targetScore: puzzle.target_score || 1000
+      }));
+    } catch (error) {
+      console.error('Unexpected error in getPuzzles:', error);
+      return [];
+    }
   }
 }
 

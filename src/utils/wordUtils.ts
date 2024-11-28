@@ -59,3 +59,30 @@ export function isThemeRelated(word: string, theme: string): boolean {
 
   return themeWords.has(word);
 };
+
+// Function to check if a word is valid (at least 3 letters and contains only letters)
+export function isValidWord(word: string): boolean {
+  return word.length >= 3 && /^[a-zA-Z]+$/.test(word);
+}
+
+// Calculate word score based on length and letter complexity
+export function calculateWordScore(word: string): number {
+  if (!isValidWord(word)) return 0;
+  
+  // Base points: 1 point per letter
+  let score = word.length;
+  
+  // Bonus points for complex letters (Q, X, J, Z)
+  const complexLetters = new Set(['q', 'x', 'j', 'z']);
+  for (const letter of word.toLowerCase()) {
+    if (complexLetters.has(letter)) {
+      score += 2; // Extra points for complex letters
+    }
+  }
+  
+  // Length bonuses
+  if (word.length >= 6) score += 3;  // Bonus for longer words
+  if (word.length >= 8) score += 5;  // Extra bonus for very long words
+  
+  return score;
+}

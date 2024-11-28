@@ -1,21 +1,66 @@
 import React, { useState } from 'react';
 import { Share, Trophy, Award, Star } from 'lucide-react';
-import { useStore } from '../store/gameStore';
+import { useGameStore } from '../store/gameStore';
 
 export const ShareResults: React.FC = () => {
-  const { score, words, redditUser } = useStore();
+  const { score, words, redditUser } = useGameStore();
   const [shared, setShared] = useState(false);
   const [subreddit, setSubreddit] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  const handleShare = async () => {
-    try {
-      setError(null);
-      // Share implementation here
-      setShared(true);
-    } catch (err) {
-      setError('Failed to share results. Please try again.');
+  const handleShare = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!subreddit) {
+      setError('Please enter a subreddit name');
+      return;
     }
+
+    try {
+      if (!redditUser || !redditUser.isAuthenticated || !redditUser.accessToken) {
+        setError('You must be logged in to share results');
+        return;
+      }
+
+      const content = generateShareContent();
+      // Call Reddit API to create post
+      const response = await fetch(`https://oauth.reddit.com/api/submit`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${redditUser.accessToken}`,
+        },
+        body: JSON.stringify({
+          kind: 'self',
+          sr: subreddit,
+          title: `My SnooWords Score: ${score} points!`,
+          text: content,
+        }),
+      });
+
+      if (response.ok) {
+        setShared(true);
+        setError(null);
+      } else {
+        const errorData = await response.json();
+        setError(errorData.message || 'Failed to share results. Please try again.');
+      }
+    } catch (err) {
+      setError('An error occurred while sharing results');
+      console.error(err);
+    }
+  };
+
+  const generateShareContent = () => {
+    if (!redditUser || !redditUser.isAuthenticated) return '';
+    
+    const content = `
+# SnooWords Score Report
+- Player: ${redditUser.name}
+- Score: ${score} points
+- Words Found: ${words.length}
+${words.map(word => `- ${word.word} (${word.points} pts)`).join('\n')}
+    `;
+    return content;
   };
 
   return (
@@ -34,7 +79,7 @@ export const ShareResults: React.FC = () => {
 
         {/* Share Options */}
         <div className="space-y-4">
-          {redditUser.isAuthenticated ? (
+          {redditUser && redditUser.isAuthenticated ? (
             <>
               {/* Reddit Share Options */}
               <div className="space-y-3">

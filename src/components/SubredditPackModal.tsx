@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useStore } from '../store/gameStore';
+import { useGameStore } from '../store/gameStore';
 import { SubredditPack } from '../types/supabase';
 import { X, Search } from 'lucide-react';
 
@@ -22,7 +22,7 @@ export const SubredditPackModal: React.FC<SubredditPackModalProps> = ({
     currentSubreddit,
     fetchAvailableSubreddits,
     fetchSubredditPacks,
-  } = useStore();
+  } = useGameStore();
 
   useEffect(() => {
     if (isOpen) {

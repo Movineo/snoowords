@@ -1,9 +1,9 @@
 import React from 'react';
 import { Clock, Award, Star, TrendingUp, Gift, Shield } from 'lucide-react';
-import { useStore } from '../store/gameStore';
+import { useGameStore } from '../store/gameStore';
 import { toast } from 'react-hot-toast';
 
-type PowerUpId = 'timeAward' | 'doubleKarma' | 'karmaBoost' | 'awardsMultiplier' | 'redditGold';
+type PowerUpId = 'timeFreeze' | 'wordHint' | 'scoreBooster' | 'shieldProtection';
 
 interface PowerUp {
     id: PowerUpId;
@@ -16,60 +16,49 @@ interface PowerUp {
 }
 
 export const PowerUps = () => {
-    const { activatePowerUp, redditUser, powerUps } = useStore();
-
-    const karmaLevel = (redditUser?.karma || 0) >= 1000;
+    const { activatePowerUp, redditUser, powerUps } = useGameStore();
 
     const powerUpsList: PowerUp[] = [
         {
-            id: 'timeAward',
-            name: 'Time Award',
-            description: 'Adds 15 seconds to the clock',
+            id: 'timeFreeze',
+            name: 'Time Freeze',
+            description: 'Freezes the timer for 15 seconds',
             icon: Clock,
             color: 'text-blue-400',
             karmaRequired: 50,
             cooldown: 30
         },
         {
-            id: 'doubleKarma',
-            name: 'Double Karma',
-            description: '2x karma for 15 seconds',
+            id: 'wordHint',
+            name: 'Word Hint',
+            description: 'Reveals a possible word',
             icon: Star,
             color: 'text-yellow-400',
             karmaRequired: 100,
             cooldown: 45
         },
         {
-            id: 'karmaBoost',
-            name: 'Karma Boost',
-            description: 'Bonus karma for themed words',
+            id: 'scoreBooster',
+            name: 'Score Booster',
+            description: '2x points for 15 seconds',
             icon: TrendingUp,
             color: 'text-green-400',
             karmaRequired: 75,
             cooldown: 30
         },
         {
-            id: 'awardsMultiplier',
-            name: 'Awards Multiplier',
-            description: 'Increases award chances',
-            icon: Award,
+            id: 'shieldProtection',
+            name: 'Shield',
+            description: 'Protects against time penalties',
+            icon: Shield,
             color: 'text-purple-400',
             karmaRequired: 150,
             cooldown: 60
-        },
-        {
-            id: 'redditGold',
-            name: 'Reddit Gold',
-            description: 'All bonuses for 10 seconds',
-            icon: Gift,
-            color: 'text-yellow-500',
-            karmaRequired: 200,
-            cooldown: 90
         }
     ];
 
     const handlePowerUp = (powerUp: PowerUp) => {
-        if (!redditUser.isAuthenticated) {
+        if (!redditUser?.isAuthenticated) {
             toast.error('Login with Reddit to use power-ups!');
             return;
         }
@@ -79,7 +68,7 @@ export const PowerUps = () => {
             return;
         }
 
-        if (powerUps[powerUp.id]) {
+        if (powerUps[powerUp.id] && powerUps[powerUp.id].active) {
             toast.error('Power-up already active!');
             return;
         }
@@ -92,36 +81,31 @@ export const PowerUps = () => {
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 sm:gap-3">
             {powerUpsList.map((powerUp) => {
                 const Icon = powerUp.icon;
-                const isActive = powerUps[powerUp.id];
+                const isActive = powerUps[powerUp.id] && powerUps[powerUp.id].active;
                 const canAfford = (redditUser?.karma || 0) >= powerUp.karmaRequired;
-                const isAuthenticated = redditUser.isAuthenticated;
+                const isAuthenticated = redditUser?.isAuthenticated || false;
 
                 return (
                     <button
                         key={powerUp.id}
                         onClick={() => handlePowerUp(powerUp)}
-                        disabled={isActive || !canAfford || !isAuthenticated}
+                        disabled={!canAfford || isActive || !isAuthenticated}
                         className={`
-                            relative p-2 sm:p-3 rounded-lg transition-all transform 
-                            hover:scale-105 active:scale-95 
-                            ${isActive ? 'bg-gray-700 cursor-not-allowed' : 
-                              !isAuthenticated ? 'bg-gray-800 cursor-not-allowed' :
-                              canAfford ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-800 cursor-not-allowed'}
+                            relative p-3 rounded-lg border transition-all duration-200
+                            ${isActive ? 'bg-gray-700 border-gray-600' : 'bg-gray-800/50 backdrop-blur-sm hover:bg-gray-700/50'}
+                            ${canAfford ? 'border-gray-600' : 'border-red-500/50'}
+                            ${isAuthenticated ? '' : 'opacity-50 cursor-not-allowed'}
                         `}
-                        title={powerUp.description}
+                        title={!isAuthenticated ? 'Login to use power-ups' : !canAfford ? `Need ${powerUp.karmaRequired} karma` : powerUp.description}
                     >
-                        <div className="flex flex-col items-center">
-                            <Icon className={`w-5 h-5 sm:w-6 sm:h-6 ${powerUp.color} ${!canAfford && 'opacity-50'}`} />
-                            <div className="text-xs sm:text-sm font-semibold mt-1 text-center line-clamp-1">
-                                {powerUp.name}
-                            </div>
-                            <div className={`text-xs mt-1 ${canAfford ? 'text-green-400' : 'text-red-400'}`}>
-                                {powerUp.karmaRequired}k
-                            </div>
+                        <div className="flex flex-col items-center gap-2">
+                            <Icon className={`w-6 h-6 ${powerUp.color}`} />
+                            <div className="text-sm font-medium">{powerUp.name}</div>
+                            <div className="text-xs text-gray-400">{powerUp.karmaRequired} karma</div>
                         </div>
                         {isActive && (
-                            <div className="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center">
-                                <span className="text-xs font-bold text-white">ACTIVE</span>
+                            <div className="absolute inset-0 bg-gray-900/50 backdrop-blur-sm rounded-lg flex items-center justify-center">
+                                <div className="text-sm font-medium text-gray-300">Active</div>
                             </div>
                         )}
                     </button>

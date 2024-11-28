@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useStore } from '../store/gameStore';
+import { useGameStore } from '../store/gameStore';
 
 const SubredditPacks: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -10,7 +10,7 @@ const SubredditPacks: React.FC = () => {
     fetchAvailableSubreddits,
     fetchSubredditPacks,
     setShowSubredditPacks
-  } = useStore();
+  } = useGameStore();
 
   useEffect(() => {
     fetchAvailableSubreddits();

@@ -1,66 +1,105 @@
 import React from 'react';
-import { useStore } from '../store/gameStore';
-import { Award, User, HelpCircle } from 'react-feather';
+import { useGameStore } from '../store/gameStore';
+import { Trophy, Medal, LogOut, LogIn } from 'lucide-react';
 import { redditService } from '../services/redditService';
+import { Link, useNavigate } from 'react-router-dom';
+import { playSound } from '../utils/soundUtils';
 
 interface HeaderProps {
   onShowRules?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({ onShowRules }) => {
-  const { redditUser } = useStore();
-  const { name, karma, isAuthenticated, avatar, trophies } = redditUser || {};
+  const { redditUser } = useGameStore();
+  const navigate = useNavigate();
 
-  const handleLoginClick = () => {
-    const authUrl = redditService.getAuthUrl();
-    window.location.href = authUrl;
+  const handleLogout = () => {
+    // Clear Reddit session
+    if (window.localStorage.getItem('reddit_token')) {
+      window.localStorage.removeItem('reddit_token');
+    }
+    if (window.localStorage.getItem('reddit_refresh_token')) {
+      window.localStorage.removeItem('reddit_refresh_token');
+    }
+
+    // Reset game store state
+    useGameStore.getState().setRedditUser(null);
+    useGameStore.getState().setIsAuthenticated(false);
+    useGameStore.getState().resetGameState();
+
+    // Clear any active games or battles
+    useGameStore.getState().setActiveGame(null);
+    useGameStore.getState().setActiveBattle(null);
+
+    // Play logout sound
+    playSound('logout');
+
+    // Redirect to home page
+    navigate('/');
   };
 
   return (
-    <header className="bg-gray-800/50 backdrop-blur-lg border-b border-white/10">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="text-2xl sm:text-3xl font-bold text-white flex items-center gap-2">
-              <span>SnooWords</span>
-            </div>
-            {onShowRules && (
-              <button
-                onClick={onShowRules}
-                className="text-sm px-3 py-1 bg-white/10 hover:bg-white/20 rounded-full transition-colors flex items-center gap-1"
+    <header className="bg-white shadow-sm">
+      <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8">
+        <div className="flex justify-between h-16 items-center">
+          {/* Logo and Navigation */}
+          <div className="flex items-center">
+            <Link to="/" className="flex items-center gap-2">
+              <img
+                src="/logo.png"
+                alt="SnooWords"
+                className="h-8 w-8 sm:h-10 sm:w-10"
+              />
+              <span className="text-lg sm:text-xl font-bold text-gray-900 hidden sm:block">
+                SnooWords
+              </span>
+            </Link>
+            <nav className="ml-4 sm:ml-6 space-x-2 sm:space-x-4">
+              <Link
+                to="/battles"
+                className="inline-flex items-center px-2 sm:px-3 py-2 text-sm sm:text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-md"
               >
-                <HelpCircle className="w-4 h-4" />
-                <span className="hidden sm:inline">Rules</span>
-              </button>
-            )}
+                <Trophy className="h-4 w-4 sm:h-5 sm:w-5 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Battles</span>
+              </Link>
+              <Link
+                to="/leaderboard"
+                className="inline-flex items-center px-2 sm:px-3 py-2 text-sm sm:text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-md"
+              >
+                <Medal className="h-4 w-4 sm:h-5 sm:w-5 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Leaderboard</span>
+              </Link>
+            </nav>
           </div>
-          
-          <div className="flex items-center gap-4">
-            {isAuthenticated ? (
-              <div className="flex items-center gap-4">
-                <div className="hidden sm:flex items-center gap-2 bg-white/5 px-3 py-1 rounded-full">
-                  <Award className="w-4 h-4 text-yellow-400" />
-                  <span className="text-sm text-white">{trophies || 0} trophies</span>
+
+          {/* User Menu */}
+          <div className="flex items-center gap-2 sm:gap-4">
+            {redditUser?.isAuthenticated ? (
+              <div className="flex items-center">
+                <div className="hidden sm:flex flex-col items-end mr-3">
+                  <span className="text-sm font-medium text-gray-900">
+                    {redditUser.name}
+                  </span>
+                  <span className="text-xs text-gray-500">
+                    {redditUser.karma} karma
+                  </span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <img 
-                    src={avatar || '/default-avatar.png'} 
-                    alt={`${name}'s avatar`}
-                    className="w-8 h-8 rounded-full bg-white/10"
-                  />
-                  <div className="hidden sm:block">
-                    <div className="font-medium text-white">{name}</div>
-                    <div className="text-xs text-gray-400">{karma || 0} karma</div>
-                  </div>
-                </div>
+                <button
+                  onClick={handleLogout}
+                  className="inline-flex items-center px-2 sm:px-3 py-1.5 sm:py-2 text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-md"
+                >
+                  <LogOut className="h-4 w-4 sm:h-5 sm:w-5" />
+                  <span className="hidden sm:inline ml-2">Logout</span>
+                </button>
               </div>
             ) : (
               <button
-                onClick={handleLoginClick}
-                className="flex items-center space-x-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg hover:bg-opacity-90 transition-colors"
+                onClick={() => redditService.getAuthUrl()}
+                className="inline-flex items-center px-2 sm:px-4 py-1.5 sm:py-2 text-sm sm:text-base font-medium text-white bg-orange-500 hover:bg-orange-600 rounded-md transition-colors"
               >
-                <User className="w-5 h-5" />
-                <span>Login with Reddit</span>
+                <LogIn className="h-4 w-4 sm:h-5 sm:w-5 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Login with Reddit</span>
+                <span className="sm:hidden">Login</span>
               </button>
             )}
           </div>

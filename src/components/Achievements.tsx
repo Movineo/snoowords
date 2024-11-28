@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useStore } from '../store/gameStore';
+import { useGameStore } from '../store/gameStore';
 import { Clock, Award, Star, Trophy, Gift, X } from 'lucide-react';
 import { gameService } from '../services/gameService';
 
@@ -12,7 +12,7 @@ interface Achievement {
 }
 
 export const Achievements: React.FC = () => {
-  const { redditUser } = useStore();
+  const { redditUser } = useGameStore();
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);

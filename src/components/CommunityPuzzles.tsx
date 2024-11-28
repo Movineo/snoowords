@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { useStore } from '../store/gameStore';
+import { useGameStore } from '../store/gameStore';
 
 const CommunityPuzzles: React.FC = () => {
-  const { setShowCommunityPuzzles } = useStore();
+  const { setShowCommunityPuzzles } = useGameStore();
   const [activeCategory, setActiveCategory] = useState<'popular' | 'new' | 'trending'>('popular');
 
   // Placeholder data - replace with actual data from your backend

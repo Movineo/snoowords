@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useStore } from '../store/gameStore';
+import { useGameStore } from '../store/gameStore';
 import { voiceService } from '../services/voiceService';
 import { wordPackService } from '../services/wordPackService';
 import { animationService } from '../services/animationService';
@@ -15,7 +15,7 @@ export const VoiceCommands: React.FC = () => {
   const [showPuzzleModal, setShowPuzzleModal] = useState(false);
   const [showPackModal, setShowPackModal] = useState(false);
   const [showAchievementsModal, setShowAchievementsModal] = useState(false);
-  const store = useStore();
+  const store = useGameStore();
 
   useEffect(() => {
     setIsSupported(voiceService.isSupported());

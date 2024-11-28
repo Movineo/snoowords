@@ -1,13 +1,14 @@
 import { supabase } from '../config/supabase';
-import { Word, GameMode, Challenge, CommunityPuzzle } from '../types/game';
+import { Word, GameMode, Challenge, CommunityPuzzle, SubredditPack } from '../types/game';
 import { mockCommunityPuzzles } from './mockCommunityPuzzles';
 import { mockSubredditPacks } from './mockData';
 
 export interface GameSession {
   score: number;
-  words: Word[];
+  words: string[];
+  timeLeft: number;
+  timestamp: string;
   gameMode: GameMode;
-  dailyTheme?: string;
   duration: number;
 }
 
@@ -51,9 +52,8 @@ export const gameService = {
     const { data, error } = await supabase.rpc('submit_score', {
       p_reddit_username: redditUsername,
       p_score: session.score,
-      p_words: session.words.map(w => w.word),
+      p_words: session.words,
       p_game_mode: session.gameMode.id,
-      p_theme: session.dailyTheme,
       p_duration: session.duration
     });
 
@@ -83,17 +83,66 @@ export const gameService = {
   },
 
   async getDailyChallenge(): Promise<Challenge | null> {
-    // For development, return a mock daily challenge
+    const now = new Date();
+    const endOfDay = new Date(now);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    // List of themes with their descriptions and bonus words
+    const themes = [
+      { 
+        theme: 'Nature', 
+        description: 'Find words related to the natural world - plants, animals, and landscapes!',
+        bonus_words: ['TREE', 'FLOWER', 'RIVER', 'MOUNTAIN', 'FOREST']
+      },
+      { 
+        theme: 'Technology', 
+        description: 'Discover words about computers, gadgets, and innovation!',
+        bonus_words: ['COMPUTER', 'PHONE', 'ROBOT', 'DIGITAL', 'NETWORK']
+      },
+      { 
+        theme: 'Food', 
+        description: 'Hunt for delicious food-related words!',
+        bonus_words: ['PIZZA', 'PASTA', 'BREAD', 'FRUIT', 'SALAD']
+      },
+      { 
+        theme: 'Space', 
+        description: 'Find cosmic words about stars, planets, and the universe!',
+        bonus_words: ['STAR', 'PLANET', 'GALAXY', 'COMET', 'MOON']
+      },
+      { 
+        theme: 'Sports', 
+        description: 'Score points with sports and athletic terms!',
+        bonus_words: ['BALL', 'TEAM', 'SCORE', 'GAME', 'RACE']
+      },
+      { 
+        theme: 'Music', 
+        description: 'Find harmonious words related to music and sound!',
+        bonus_words: ['SONG', 'BEAT', 'RHYTHM', 'MELODY', 'TUNE']
+      },
+      { 
+        theme: 'Ocean', 
+        description: 'Dive deep for marine and ocean-related words!',
+        bonus_words: ['WAVE', 'FISH', 'CORAL', 'BEACH', 'SHELL']
+      }
+    ];
+
+    // Use the day of the year to select a theme
+    const dayOfYear = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / 86400000);
+    const todayTheme = themes[dayOfYear % themes.length];
+
     const mockChallenge: Challenge = {
-      id: 'daily-1',
+      id: `daily-${dayOfYear}`,
       title: 'Daily Theme Challenge',
-      description: 'Find words related to today\'s theme to earn bonus points!',
-      theme: 'Technology',
-      start_date: new Date(new Date().setHours(0, 0, 0, 0)).toISOString(),
-      end_date: new Date(new Date().setHours(23, 59, 59, 999)).toISOString(),
-      reward_karma: 100,
+      description: todayTheme.description,
+      type: 'daily',
+      timeLimit: 24 * 60 * 60,
       targetScore: 100,
-      participants: 42
+      reward_karma: 100,
+      startDate: now.toISOString(),
+      endDate: endOfDay.toISOString(),
+      completed: false,
+      theme: todayTheme.theme,
+      bonus_words: todayTheme.bonus_words
     };
 
     // In production, fetch from Supabase
@@ -101,12 +150,17 @@ export const gameService = {
       const { data, error } = await supabase
         .from('daily_challenges')
         .select('*')
-        .gte('end_date', new Date().toISOString())
-        .lte('start_date', new Date().toISOString())
+        .eq('type', 'daily')
+        .gte('endDate', now.toISOString())
+        .order('startDate', { ascending: true })
+        .limit(1)
         .single();
 
-      if (error) return mockChallenge;
-      return data;
+      if (error) {
+        console.error('Error fetching daily challenge:', error);
+        return mockChallenge; // Fallback to mock challenge if there's an error
+      }
+      return data || mockChallenge;
     }
 
     return mockChallenge;
@@ -216,6 +270,12 @@ export const gameService = {
     return unlockedAchievements;
   },
 
+  calculateWordPoints(word: string): number {
+    const basePoints = word.length;
+    const bonusPoints = word.length >= 6 ? Math.floor(word.length * 0.5) : 0;
+    return basePoints + bonusPoints;
+  },
+
   async getWordSuggestion(letters: string[], usedWords: string[]): Promise<string | null> {
     try {
       // Call the Supabase function to get word suggestions
@@ -236,20 +296,18 @@ export const gameService = {
     }
   },
 
-  async getSubredditWordPacks(subreddit: string): Promise<string[]> {
-    try {
-      // Use mock data during development
+  async getSubredditWordPacks(subreddit: string): Promise<SubredditPack[]> {
+    if (process.env.NODE_ENV === 'development') {
+      // Return mock data in development
       const mockPack = mockSubredditPacks[subreddit];
-      if (mockPack) {
-        return mockPack.words;
-      }
+      return mockPack ? [mockPack] : [];
+    }
 
-      // Fallback to database if no mock data exists
+    try {
       const { data, error } = await supabase
         .from('subreddit_word_packs')
-        .select('words')
-        .eq('subreddit', subreddit)
-        .order('upvotes', { ascending: false });
+        .select('*')
+        .eq('subreddit', subreddit);
 
       if (error) {
         console.error('Error fetching word packs:', error);
@@ -260,15 +318,18 @@ export const gameService = {
         return [];
       }
 
-      // Efficiently combine words from all packs using a Set to remove duplicates
-      const uniqueWords = new Set<string>();
-      data.forEach(pack => {
-        if (Array.isArray(pack.words)) {
-          pack.words.forEach(word => uniqueWords.add(word.toLowerCase().trim()));
-        }
-      });
-
-      return Array.from(uniqueWords);
+      return data.map(pack => ({
+        id: pack.id,
+        name: pack.name || `${pack.subreddit} Pack`,
+        subreddit: pack.subreddit,
+        words: pack.words,
+        theme: pack.theme || pack.subreddit,
+        difficulty: pack.difficulty || 'medium',
+        upvotes: pack.upvotes || 0,
+        creator: pack.creator || 'anonymous',
+        created_at: pack.created_at || new Date().toISOString(),
+        description: pack.description || `Word pack for r/${pack.subreddit}`
+      }));
     } catch (error) {
       console.error('Unexpected error in getSubredditWordPacks:', error);
       return [];
@@ -313,96 +374,81 @@ export const gameService = {
   },
 
   async validateWord(word: string): Promise<boolean> {
+    if (!word || word.length < 3) return false;
+
+    const word_lower = word.toLowerCase();
+
+    // Check cache first
     try {
-      const word_lower = word.toLowerCase();
-
-      // First check cached words
-      try {
-        const cachedWords = JSON.parse(localStorage.getItem('validatedWords') || '{}');
-        if (cachedWords[word_lower] !== undefined) {
-          return cachedWords[word_lower];
-        }
-      } catch (e) {
-        console.error('Error checking cached words:', e);
+      const cachedWords = JSON.parse(localStorage.getItem('validatedWords') || '{}');
+      if (word_lower in cachedWords) {
+        return cachedWords[word_lower];
       }
+    } catch (e) {
+      console.error('Error reading cache:', e);
+    }
 
-      // Try Free Dictionary API first
-      try {
-        const response = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word_lower}`);
-        if (response.ok) {
-          // Cache the valid word
-          try {
-            const cachedWords = JSON.parse(localStorage.getItem('validatedWords') || '{}');
-            cachedWords[word_lower] = true;
-            localStorage.setItem('validatedWords', JSON.stringify(cachedWords));
-          } catch (e) {
-            console.error('Error caching word:', e);
-          }
-          return true;
-        }
-      } catch (error) {
-        console.error('Error with Free Dictionary API:', error);
-      }
+    // Check local dictionary first
+    const commonWords = new Set([
+      'the', 'be', 'to', 'of', 'and', 'in', 'that', 'have', 'it', 'for',
+      'not', 'on', 'with', 'he', 'as', 'you', 'do', 'at', 'this', 'but',
+      'his', 'by', 'from', 'they', 'we', 'say', 'her', 'she', 'or', 'an',
+      'will', 'my', 'one', 'all', 'would', 'there', 'their', 'what', 'so',
+      'up', 'out', 'if', 'about', 'who', 'get', 'which', 'go', 'me', 'when'
+    ]);
 
-      // Fallback to Datamuse API
-      try {
-        const response = await fetch(`https://api.datamuse.com/words?sp=${word_lower}&md=d&max=1`);
-        if (response.ok) {
-          const data = await response.json();
-          const isValid = data.length > 0 && data[0].word === word_lower && data[0].defs;
-          
-          // Cache the result
-          try {
-            const cachedWords = JSON.parse(localStorage.getItem('validatedWords') || '{}');
-            cachedWords[word_lower] = isValid;
-            localStorage.setItem('validatedWords', JSON.stringify(cachedWords));
-          } catch (e) {
-            console.error('Error caching word:', e);
-          }
+    if (commonWords.has(word_lower)) {
+      this.cacheWord(word_lower, true);
+      return true;
+    }
 
-          return isValid;
-        }
-      } catch (error) {
-        console.error('Error with Datamuse API:', error);
-      }
-
-      // If both APIs fail, check against a basic list of common words
-      const commonWords = new Set([
-        'the', 'be', 'to', 'of', 'and', 'a', 'in', 'that', 'have', 'i', 'it', 'for', 'not', 'on', 'with', 'he', 'as',
-        'you', 'do', 'at', 'this', 'but', 'his', 'by', 'from', 'they', 'we', 'say', 'her', 'she', 'or', 'an', 'will',
-        'my', 'one', 'all', 'would', 'there', 'their', 'what', 'so', 'up', 'out', 'if', 'about', 'who', 'get', 'which',
-        'go', 'me', 'when', 'make', 'can', 'like', 'time', 'no', 'just', 'him', 'know', 'take', 'people', 'into', 'year',
-        'your', 'good', 'some', 'could', 'them', 'see', 'other', 'than', 'then', 'now', 'look', 'only', 'come', 'its',
-        'over', 'think', 'also', 'back', 'after', 'use', 'two', 'how', 'our', 'work', 'first', 'well', 'way', 'even',
-        'new', 'want', 'because', 'any', 'these', 'give', 'day', 'most', 'us'
-      ]);
-
-      if (commonWords.has(word_lower)) {
-        try {
-          const cachedWords = JSON.parse(localStorage.getItem('validatedWords') || '{}');
-          cachedWords[word_lower] = true;
-          localStorage.setItem('validatedWords', JSON.stringify(cachedWords));
-        } catch (e) {
-          console.error('Error caching word:', e);
-        }
-        return true;
-      }
-
-      // If all checks fail, cache as invalid and return false
-      try {
-        const cachedWords = JSON.parse(localStorage.getItem('validatedWords') || '{}');
-        cachedWords[word_lower] = false;
-        localStorage.setItem('validatedWords', JSON.stringify(cachedWords));
-      } catch (e) {
-        console.error('Error caching word:', e);
-      }
-      return false;
-
+    // Try Free Dictionary API
+    try {
+      const response = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word_lower}`);
+      const isValid = response.ok;
+      this.cacheWord(word_lower, isValid);
+      if (isValid) return true;
     } catch (error) {
-      console.error('Error validating word:', error);
+      console.error('Error with Free Dictionary API:', error);
+    }
+
+    // Fallback to Datamuse API
+    try {
+      const response = await fetch(`https://api.datamuse.com/words?sp=${word_lower}&max=1`);
+      if (!response.ok) throw new Error('Datamuse API error');
+      
+      const data = await response.json();
+      const isValid = data.length > 0 && data[0].word.toLowerCase() === word_lower;
+      this.cacheWord(word_lower, isValid);
+      return isValid;
+    } catch (error) {
+      console.error('Error with Datamuse API:', error);
       return false;
     }
   },
+
+  cacheWord(word: string, isValid: boolean) {
+    try {
+      const cachedWords = JSON.parse(localStorage.getItem('validatedWords') || '{}');
+      cachedWords[word] = isValid;
+      localStorage.setItem('validatedWords', JSON.stringify(cachedWords));
+    } catch (e) {
+      console.error('Error caching word:', e);
+    }
+  },
+
+  async submitChallengeScore(challengeId: string, redditUsername: string, score: number, words: string[]): Promise<void> {
+    const { error } = await supabase
+      .from('challenge_scores')
+      .insert([{
+        challenge_id: challengeId,
+        reddit_username: redditUsername,
+        score,
+        words
+      }]);
+
+    if (error) throw error;
+  }
 };
 
 export type GameService = typeof gameService;

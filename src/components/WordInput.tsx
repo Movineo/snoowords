@@ -1,9 +1,9 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { useStore } from '../store/gameStore';
+import { useGameStore } from '../store/gameStore';
 import { X } from 'lucide-react';
 
 export const WordInput: React.FC = () => {
-  const { selectedLetters, letters, submitWord, clearSelection, setCurrentWord } = useStore();
+  const { selectedLetters, letters, submitWord, clearSelection, setCurrentWord } = useGameStore();
   const [inputValue, setInputValue] = useState('');
   const [showError, setShowError] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);

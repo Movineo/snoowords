@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { Clock, Star, Book, Mic } from 'lucide-react';
-import { useStore } from '../store/gameStore';
+import { useGameStore } from '../store/gameStore';
 import { PowerUps } from './PowerUps';
 import { WordInput } from './WordInput';
 import { VoiceCommands } from './VoiceCommands';
@@ -11,8 +11,15 @@ import { CommunityPuzzleModal } from './CommunityPuzzleModal';
 import { voiceService } from '../services/voiceService';
 import { gsap } from 'gsap';
 import { animationService } from '../services/animationService';
+import { RedditWordPack } from '../types/game';
 
-export const GameBoard: React.FC = () => {
+interface GameBoardProps {
+  wordPack?: RedditWordPack;
+  onGameComplete?: (score: number, words: string[]) => Promise<void>;
+}
+
+export const GameBoard: React.FC<GameBoardProps> = ({ wordPack, onGameComplete }) => {
+  // Store hooks
   const { 
     letters, 
     selectedLetters, 
@@ -20,15 +27,16 @@ export const GameBoard: React.FC = () => {
     score, 
     selectLetter, 
     words,
-    isVoiceEnabled,
-    toggleVoice,
+    isVoiceEnabled, 
+    toggleVoice, 
     showSubredditPacks,
-    setShowSubredditPacks,
+    setShowSubredditPacks, 
     showCommunityPuzzles,
     setShowCommunityPuzzles,
     clearSelection,
-    submitWord
-  } = useStore();
+    setSelectedWordPack,
+    status
+  } = useGameStore();
 
   useEffect(() => {
     if (isVoiceEnabled) {
@@ -37,6 +45,40 @@ export const GameBoard: React.FC = () => {
       voiceService.stopListening();
     }
   }, [isVoiceEnabled]);
+
+  useEffect(() => {
+    if (wordPack) {
+      setSelectedWordPack(wordPack);
+    }
+  }, [wordPack]);
+
+  useEffect(() => {
+    if (status === 'ended' && onGameComplete) {
+      onGameComplete(score, words.map(w => w.word));
+    }
+  }, [status, score, words, onGameComplete]);
+
+  // Voice recognition setup
+  useEffect(() => {
+    if (isVoiceEnabled) {
+      // Initialize voice recognition
+      setupVoiceRecognition();
+    }
+    return () => {
+      // Cleanup voice recognition
+      cleanupVoiceRecognition();
+    };
+  }, [isVoiceEnabled]);
+
+  const setupVoiceRecognition = () => {
+    // Voice recognition setup logic
+    console.log('Voice recognition enabled');
+  };
+
+  const cleanupVoiceRecognition = () => {
+    // Voice recognition cleanup logic
+    console.log('Voice recognition disabled');
+  };
 
   const handleLetterClick = (index: number) => {
     selectLetter(index);
@@ -57,9 +99,13 @@ export const GameBoard: React.FC = () => {
     clearSelection();
   };
 
-  const handleSubmitWord = () => {
-    animationService.playClickSound();
-    submitWord();
+  // Community features handlers
+  const handleShowSubredditPacks = () => {
+    setShowSubredditPacks(true);
+  };
+
+  const handleShowCommunityPuzzles = () => {
+    setShowCommunityPuzzles(true);
   };
 
   return (
@@ -181,14 +227,14 @@ export const GameBoard: React.FC = () => {
         {/* Community Features */}
         <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 justify-center mb-2 sm:mb-4">
           <button
-            onClick={() => setShowSubredditPacks(true)}
+            onClick={handleShowSubredditPacks}
             className="flex items-center justify-center gap-1 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition-colors text-sm sm:text-base"
           >
             <Star className="w-4 h-4 sm:w-5 sm:h-5" />
             Subreddit Packs
           </button>
           <button
-            onClick={() => setShowCommunityPuzzles(true)}
+            onClick={handleShowCommunityPuzzles}
             className="flex items-center justify-center gap-1 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors text-sm sm:text-base"
           >
             <Book className="w-4 h-4 sm:w-5 sm:h-5" />

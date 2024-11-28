@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import { Header } from './components/Header';
 import { GameSetup } from './components/GameSetup';
 import { GameBoard } from './components/GameBoard';
 import { GameOver } from './components/GameOver';
 import { RedditCallback } from './components/RedditCallback';
-import { useStore } from './store/gameStore';
+import { useGameStore } from './store/gameStore';
 import { gameService } from './services/gameService';
 import { toast } from 'react-hot-toast';
 import { DailyChallenge } from './components/DailyChallenge';
@@ -13,9 +13,10 @@ import { GameRules } from './components/GameRules';
 import { Leaderboard } from './components/Leaderboard';
 import { CommunityChallenge } from './components/CommunityChallenge';
 import { Achievements } from './components/Achievements';
+import { SubredditBattle } from './components/SubredditBattle';
 
 function App() {
-  const { status, showRules, words, timeLeft, toggleRules, startGame, tick } = useStore();
+  const { status, showRules, words, timeLeft, toggleRules, startGame, tick } = useGameStore();
   const [playerName, setPlayerName] = useState('');
 
   const handleStartGame = () => {
@@ -23,7 +24,7 @@ function App() {
   };
 
   const handlePlayAgain = () => {
-    useStore.getState().resetGame();
+    useGameStore.getState().resetGame();
   };
 
   // Timer effect
@@ -48,12 +49,14 @@ function App() {
     const submitScore = async () => {
       if (status === 'idle' && words.length > 0) {
         try {
-          const { redditUser } = useStore.getState();
+          const { redditUser } = useGameStore.getState();
           const finalPlayerName = redditUser?.name || playerName || 'Anonymous Player';
           
           await gameService.submitScore(finalPlayerName, {
             score: words.reduce((sum, word) => sum + word.points, 0),
-            words: words,
+            words: words.map(w => w.word),
+            timeLeft,
+            timestamp: new Date().toISOString(),
             gameMode: { 
               id: 'classic', 
               name: 'Classic', 
@@ -91,6 +94,9 @@ function App() {
         <Header onShowRules={toggleRules} />
         <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 max-w-7xl">
           <Routes>
+            <Route path="/auth/callback" element={<RedditCallback />} />
+            <Route path="/battles" element={<SubredditBattle />} />
+            <Route path="/leaderboard" element={<Leaderboard />} />
             <Route 
               path="/" 
               element={
@@ -105,7 +111,23 @@ function App() {
                         playerName={playerName}
                         onPlayerNameChange={setPlayerName}
                       />
-                      <Achievements />
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-4">
+                          <h2 className="text-xl font-bold">Game Modes</h2>
+                          <div className="grid gap-4">
+                            <Link 
+                              to="/battles" 
+                              className="p-4 bg-gradient-to-r from-purple-500 to-indigo-600 rounded-lg hover:from-purple-600 hover:to-indigo-700 transition-all"
+                            >
+                              <h3 className="text-lg font-bold mb-2">Subreddit Battles</h3>
+                              <p className="text-sm text-gray-200">
+                                Join epic word battles between subreddits! Create, play, or spectate live matches.
+                              </p>
+                            </Link>
+                          </div>
+                        </div>
+                        <Achievements />
+                      </div>
                       <div className="mt-6">
                         <Leaderboard />
                       </div>
@@ -137,7 +159,6 @@ function App() {
                 </>
               } 
             />
-            <Route path="/auth/callback" element={<RedditCallback />} />
           </Routes>
         </main>
       </div>

@@ -1,12 +1,12 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useStore } from '../store/gameStore';
+import { useGameStore } from '../store/gameStore';
 import { redditService } from '../services/redditService';
 import { toast } from 'react-hot-toast';
 
 export const RedditCallback: React.FC = () => {
   const navigate = useNavigate();
-  const { setRedditUser } = useStore();
+  const { setRedditUser } = useGameStore();
 
   useEffect(() => {
     const handleCallback = async () => {
@@ -17,67 +17,30 @@ export const RedditCallback: React.FC = () => {
 
       if (error) {
         console.error('Reddit OAuth error:', error);
-        toast(`Reddit login failed: ${error}`, {
-          icon: '⚠️',
-          duration: 3000
-        });
+        toast.error(`Reddit login failed: ${error}`);
         navigate('/');
         return;
       }
 
       if (!code || !state) {
         console.error('Missing code or state from Reddit');
-        toast('Invalid Reddit response', {
-          icon: '⚠️',
-          duration: 3000
-        });
+        toast.error('Invalid Reddit response');
         navigate('/');
         return;
       }
 
       try {
-        // Handle the callback using redditService
-        const success = await redditService.handleCallback(code, state);
-        if (success) {
-          // Get user data
-          const userData = await redditService.getUserData();
-          if (userData) {
-            setRedditUser({
-              name: userData.name,
-              karma: userData.karma,
-              isAuthenticated: true,
-              avatar: userData.avatar,
-              trophies: userData.trophies || 0,
-              achievements: {
-                first_post: { unlocked: false, progress: 0 },
-                karma_collector: { unlocked: false, progress: 0 },
-                award_giver: { unlocked: false, progress: 0 },
-                community_leader: { unlocked: false, progress: 0 },
-              }
-            });
-            toast(`Welcome back, ${userData.name}!`, {
-              icon: '👋',
-              duration: 3000
-            });
-          } else {
-            toast('Failed to get user data', {
-              icon: '⚠️',
-              duration: 3000
-            });
-          }
+        const userData = await redditService.handleCallback(code, state);
+        if (userData) {
+          setRedditUser(userData);
+          toast.success('Successfully logged in with Reddit!');
         } else {
-          toast('Reddit login failed', {
-            icon: '⚠️',
-            duration: 3000
-          });
+          toast.error('Failed to get user data');
         }
-      } catch (error) {
-        console.error('Error during Reddit callback:', error);
-        toast('Reddit login failed', {
-          icon: '⚠️',
-          duration: 3000
-        });
-      } finally {
+        navigate('/');
+      } catch (err) {
+        console.error('Error in Reddit callback:', err);
+        toast.error('Failed to complete Reddit login');
         navigate('/');
       }
     };

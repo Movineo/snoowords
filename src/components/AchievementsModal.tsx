@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect } from 'react';
-import { useAchievementStore, AchievementRarity } from '../services/achievementService';
+import { useGameStore } from '../store/gameStore';
 import { X, Trophy } from 'lucide-react';
 
 interface AchievementsModalProps {
@@ -11,7 +11,7 @@ export const AchievementsModal: React.FC<AchievementsModalProps> = ({
   isOpen,
   onClose,
 }) => {
-  const { achievements, points } = useAchievementStore();
+  const { achievements, score } = useGameStore();
 
   // Handle ESC key press
   const handleEscKey = useCallback((event: KeyboardEvent) => {
@@ -34,7 +34,7 @@ export const AchievementsModal: React.FC<AchievementsModalProps> = ({
 
   if (!isOpen) return null;
 
-  const rarityOrder: Record<AchievementRarity, number> = {
+  const rarityOrder: Record<string, number> = {
     legendary: 0,
     epic: 1,
     rare: 2,
@@ -66,7 +66,7 @@ export const AchievementsModal: React.FC<AchievementsModalProps> = ({
             <Trophy className="text-yellow-500 w-6 h-6 sm:w-8 sm:h-8" />
             <div>
               <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Achievements</h2>
-              <p className="text-sm sm:text-base text-gray-600">Total Points: {points}</p>
+              <p className="text-sm sm:text-base text-gray-600">Total Score: {score}</p>
             </div>
           </div>
           <button
@@ -94,13 +94,13 @@ export const AchievementsModal: React.FC<AchievementsModalProps> = ({
                   <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2">
                     <div>
                       <h3 className="font-bold text-gray-800 text-sm sm:text-base">
-                        {achievement.title}
+                        {achievement.name}
                       </h3>
                       <p className="text-gray-600 text-xs sm:text-sm">{achievement.description}</p>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <span className="text-yellow-500 font-semibold text-sm sm:text-base">
-                        +{achievement.points}
+                        +{achievement.karmaReward}
                       </span>
                       <span
                         className={`px-2 py-0.5 rounded-full text-xs ${

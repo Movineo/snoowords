@@ -1,10 +1,11 @@
-import React, { useEffect } from 'react';
-import { Trophy, Medal } from 'lucide-react';
-import { useStore } from '../store/gameStore';
+import React, { useEffect, useState } from 'react';
+import { Trophy, Medal, Book, Zap, Crown, Star } from 'lucide-react';
+import { useGameStore } from '../store/gameStore';
 import { LeaderboardEntry } from '../types/game';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export const Leaderboard: React.FC = () => {
-  const { score, redditUser, leaderboard, fetchLeaderboard } = useStore();
+  const { score, redditUser, leaderboard, fetchLeaderboard } = useGameStore();
 
   useEffect(() => {
     fetchLeaderboard();
@@ -13,15 +14,18 @@ export const Leaderboard: React.FC = () => {
   // Add current player's score if it would make it to the top 10
   const getEnhancedLeaderboard = (entries: LeaderboardEntry[]) => {
     const allEntries = [...entries];
+    const playerName = redditUser?.name || 'Anonymous';
+    
     if (score > 0 && !entries.some(entry => 
-      entry.player_name === (redditUser.name || 'Anonymous') && entry.score === score
+      entry.player_name === playerName && entry.score === score
     )) {
       const currentPlayerEntry: LeaderboardEntry = {
-        player_name: redditUser.name || 'Anonymous',
+        id: `temp-${Date.now()}`,
+        player_name: playerName,
         score,
-        is_reddit_user: redditUser.isAuthenticated,
-        created_at: new Date().toISOString(),
-        words: []
+        is_reddit_user: redditUser?.isAuthenticated || false,
+        words: [],
+        created_at: new Date().toISOString()
       };
       
       allEntries.push(currentPlayerEntry);
@@ -31,149 +35,143 @@ export const Leaderboard: React.FC = () => {
     return allEntries;
   };
 
-  if (leaderboard.loading) {
-    return (
-      <div className="bg-gray-800/50 rounded-lg p-4 mt-4">
-        <div className="flex items-center gap-2 mb-4">
-          <Trophy className="w-6 h-6 text-yellow-400" />
-          <h2 className="text-xl font-bold">Leaderboard</h2>
-        </div>
-        <div className="text-center py-8 text-gray-400">
-          Loading leaderboard...
-        </div>
-      </div>
-    );
-  }
+  const getRankIcon = (rank: number) => {
+    switch (rank) {
+      case 0:
+        return <Crown className="w-6 h-6 text-yellow-500" />;
+      case 1:
+        return <Medal className="w-6 h-6 text-gray-400" />;
+      case 2:
+        return <Medal className="w-6 h-6 text-orange-500" />;
+      default:
+        return <Star className="w-5 h-5 text-gray-400 opacity-50" />;
+    }
+  };
 
-  if (leaderboard.error) {
-    return (
-      <div className="bg-gray-800/50 rounded-lg p-4 mt-4">
-        <div className="flex items-center gap-2 mb-4">
-          <Trophy className="w-6 h-6 text-yellow-400" />
-          <h2 className="text-xl font-bold">Leaderboard</h2>
-        </div>
-        <div className="text-center py-4 text-red-400">
-          {leaderboard.error}
-        </div>
-      </div>
-    );
-  }
+  const getRankStyle = (rank: number) => {
+    switch (rank) {
+      case 0:
+        return 'bg-yellow-900/30 text-yellow-100 border-yellow-700/50';
+      case 1:
+        return 'bg-gray-800/30 text-gray-100 border-gray-700/50';
+      case 2:
+        return 'bg-orange-900/30 text-orange-100 border-orange-700/50';
+      default:
+        return 'bg-gray-800/20 text-gray-300 border-gray-700/30';
+    }
+  };
+
+  const [timeRange, setTimeRange] = useState('daily');
+  const [category, setCategory] = useState('points');
 
   const dailyEntries = getEnhancedLeaderboard(leaderboard.daily);
   const allTimeEntries = getEnhancedLeaderboard(leaderboard.allTime);
 
+  const leaderboardData = timeRange === 'daily' ? dailyEntries : allTimeEntries;
+
+  if (leaderboard.loading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500"></div>
+      </div>
+    );
+  }
+
   return (
-    <div className="bg-gray-800/50 rounded-lg p-4 mt-4">
-      <div className="flex items-center gap-2 mb-4">
-        <Trophy className="w-6 h-6 text-yellow-400" />
-        <h2 className="text-xl font-bold">Leaderboard</h2>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Daily Leaderboard */}
-        <div>
-          <h3 className="text-lg font-semibold mb-3 text-purple-300">Daily Top 10</h3>
-          <div className="space-y-2">
-            {dailyEntries.map((entry, index) => (
-              <div
-                key={`daily-${entry.player_name}-${index}`}
-                className={`flex items-center justify-between p-3 rounded-lg ${
-                  index === 0 ? 'bg-yellow-500/20' :
-                  index === 1 ? 'bg-gray-400/20' :
-                  index === 2 ? 'bg-orange-700/20' :
-                  'bg-white/5'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-lg font-bold w-8">
-                    {index + 1}.
-                  </span>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">
-                        {entry.player_name}
-                      </span>
-                      {entry.is_reddit_user && (
-                        <span className="text-xs bg-orange-500/20 text-orange-300 px-2 py-0.5 rounded">
-                          Reddit
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-xs text-gray-400">
-                      {new Date(entry.created_at).toLocaleDateString()}
-                    </span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="font-bold">{entry.score}</span>
-                  {index < 3 && (
-                    <Medal className={`w-5 h-5 ${
-                      index === 0 ? 'text-yellow-400' :
-                      index === 1 ? 'text-gray-400' :
-                      'text-orange-700'
-                    }`} />
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* All-Time Leaderboard */}
-        <div>
-          <h3 className="text-lg font-semibold mb-3 text-purple-300">All-Time Top 10</h3>
-          <div className="space-y-2">
-            {allTimeEntries.map((entry, index) => (
-              <div
-                key={`alltime-${entry.player_name}-${index}`}
-                className={`flex items-center justify-between p-3 rounded-lg ${
-                  index === 0 ? 'bg-yellow-500/20' :
-                  index === 1 ? 'bg-gray-400/20' :
-                  index === 2 ? 'bg-orange-700/20' :
-                  'bg-white/5'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-lg font-bold w-8">
-                    {index + 1}.
-                  </span>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">
-                        {entry.player_name}
-                      </span>
-                      {entry.is_reddit_user && (
-                        <span className="text-xs bg-orange-500/20 text-orange-300 px-2 py-0.5 rounded">
-                          Reddit
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-xs text-gray-400">
-                      {new Date(entry.created_at).toLocaleDateString()}
-                    </span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="font-bold">{entry.score}</span>
-                  {index < 3 && (
-                    <Medal className={`w-5 h-5 ${
-                      index === 0 ? 'text-yellow-400' :
-                      index === 1 ? 'text-gray-400' :
-                      'text-orange-700'
-                    }`} />
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
+    <div className="space-y-6 p-4 sm:p-6 bg-gray-800/50 backdrop-blur-lg rounded-xl shadow-lg border border-gray-700">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <h2 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
+          Leaderboard
+        </h2>
+        <div className="flex flex-wrap gap-3 w-full sm:w-auto">
+          <select
+            value={timeRange}
+            onChange={(e) => setTimeRange(e.target.value as 'daily' | 'weekly' | 'monthly' | 'allTime')}
+            className="px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-sm font-medium text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+          >
+            <option value="daily">Today</option>
+            <option value="weekly">This Week</option>
+            <option value="monthly">This Month</option>
+            <option value="allTime">All Time</option>
+          </select>
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value as 'points' | 'words' | 'powerUps')}
+            className="px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-sm font-medium text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+          >
+            <option value="points">Points</option>
+            <option value="words">Words Found</option>
+            <option value="powerUps">Power-ups Used</option>
+          </select>
         </div>
       </div>
 
-      {dailyEntries.length === 0 && allTimeEntries.length === 0 && (
-        <div className="text-center py-4 text-gray-400">
-          No scores yet. Be the first to play!
-        </div>
-      )}
+      <div className="space-y-3">
+        <AnimatePresence>
+          {leaderboardData.map((entry, index) => (
+            <motion.div
+              key={entry.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.2, delay: index * 0.05 }}
+              className={`${getRankStyle(index)} rounded-lg border p-4 transition-all hover:shadow-md hover:bg-opacity-75`}
+            >
+              <div className="flex items-center gap-4">
+                <div className="flex items-center justify-center w-12 h-12 rounded-full bg-gradient-to-br from-purple-900/50 to-blue-900/50 border border-gray-700">
+                  {getRankIcon(index)}
+                </div>
+                
+                <div className="flex-1 flex items-center gap-4">
+                  <div className="flex-shrink-0">
+                    <img
+                      src={entry.avatar_url || `https://api.dicebear.com/6.x/bottts/svg?seed=${entry.player_name}`}
+                      alt={`${entry.player_name}'s avatar`}
+                      className="h-12 w-12 rounded-full border-2 border-gray-700 shadow-sm"
+                    />
+                  </div>
+                  
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-lg font-semibold truncate text-gray-100">
+                        {entry.player_name}
+                      </p>
+                      {entry.is_reddit_user && (
+                        <img
+                          src="/reddit-icon.svg"
+                          alt="Reddit User"
+                          className="w-5 h-5"
+                        />
+                      )}
+                    </div>
+                    <p className="text-sm text-gray-400 truncate">
+                      {entry.words?.length || 0} words • {entry.karma || 0} karma
+                    </p>
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    {category === 'points' && <Trophy className="w-5 h-5 text-yellow-500" />}
+                    {category === 'words' && <Book className="w-5 h-5 text-blue-400" />}
+                    {category === 'powerUps' && <Zap className="w-5 h-5 text-purple-400" />}
+                    <span className="text-lg font-bold text-gray-100">
+                      {formatValue(entry, category)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
     </div>
   );
+};
+
+const formatValue = (entry: LeaderboardEntry, key: string): string => {
+  const value = entry[key];
+  if (value === undefined) return '-';
+  if (typeof value === 'number') {
+    return value.toLocaleString();
+  }
+  return String(value);
 };

@@ -35,6 +35,27 @@ export interface Challenge {
   completed?: boolean;
 }
 
+export interface ICommunityChallenge {
+  id: string;
+  title: string;
+  description: string;
+  theme: string;
+  bonus_words: string[];
+  startTime: Date;
+  endTime: Date;
+  completed?: boolean;
+  targetScore?: number;
+  timeLimit: number;
+  leaderboard: {
+    username: string;
+    score: number;
+    words: string[];
+  }[];
+  username: string;
+  score: number;
+  words: string[];
+}
+
 export type AchievementType = 'silver' | 'gold' | 'platinum' | 'ternion';
 
 export * from './game';

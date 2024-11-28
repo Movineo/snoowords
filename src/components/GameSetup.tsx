@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { useStore } from '../store/gameStore';
+import { useGameStore } from '../store/gameStore';
 import { LogIn, User, Play } from 'lucide-react';
 import { REDDIT_CONFIG, REDDIT_ENDPOINTS } from '../config/reddit';
-import { animationService } from '../services/animationService'; // Import animationService
+import { animationService } from '../services/animationService';
 
 interface GameSetupProps {
   onStartGame: () => void;
@@ -11,20 +11,21 @@ interface GameSetupProps {
 }
 
 export const GameSetup: React.FC<GameSetupProps> = ({ onStartGame, playerName, onPlayerNameChange }) => {
-  const { setPlayerName, redditUser } = useStore();
+  const store = useGameStore();
+  const { redditUser } = store;
   const [error, setError] = useState<string | null>(null);
 
   const handleGuestStart = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setPlayerName(playerName);
-    animationService.playClickSound(); // Add click sound
+    store.setPlayerName(playerName);
+    animationService.playClickSound();
     onStartGame();
   };
 
   const handleRedditLogin = () => {
     try {
-      animationService.playClickSound(); // Add click sound
+      animationService.playClickSound();
       const state = Math.random().toString(36).substring(7);
       localStorage.setItem('reddit_auth_state', state);
 
@@ -42,6 +43,15 @@ export const GameSetup: React.FC<GameSetupProps> = ({ onStartGame, playerName, o
     }
   };
 
+  // Early return for loading state
+  if (redditUser === undefined) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-orange-500"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen w-full flex items-center justify-center p-4">
       <div className="w-full max-w-md">
@@ -52,7 +62,7 @@ export const GameSetup: React.FC<GameSetupProps> = ({ onStartGame, playerName, o
             <p className="text-gray-300">Choose how you'd like to play:</p>
           </div>
 
-          {redditUser.isAuthenticated ? (
+          {redditUser?.isAuthenticated ? (
             /* Reddit User View */
             <div className="space-y-4">
               <div className="bg-white/5 rounded-lg p-4 flex items-center gap-4">
@@ -60,14 +70,15 @@ export const GameSetup: React.FC<GameSetupProps> = ({ onStartGame, playerName, o
                   <User className="w-6 h-6 text-orange-500" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-medium">Playing as {redditUser.name}</h3>
-                  <p className="text-sm text-gray-400">{redditUser.karma || 0} karma</p>
+                  <h3 className="font-medium">Welcome back, {redditUser.name}!</h3>
+                  <p className="text-sm text-gray-400">Karma: {redditUser.karma}</p>
                 </div>
                 <button
                   onClick={onStartGame}
-                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors"
+                  className="px-4 py-2 bg-orange-500 hover:bg-orange-600 rounded-lg flex items-center gap-2 transition-colors"
                 >
-                  <Play className="w-5 h-5" />
+                  <Play className="w-4 h-4" />
+                  Play
                 </button>
               </div>
             </div>
@@ -76,48 +87,49 @@ export const GameSetup: React.FC<GameSetupProps> = ({ onStartGame, playerName, o
             <div className="space-y-4">
               <form onSubmit={handleGuestStart} className="space-y-4">
                 <div>
-                  <label htmlFor="name" className="block text-sm font-medium text-gray-300 mb-1">
-                    Your Name (optional)
+                  <label htmlFor="playerName" className="block text-sm font-medium mb-1">
+                    Guest Name
                   </label>
                   <input
                     type="text"
-                    id="name"
+                    id="playerName"
                     value={playerName}
                     onChange={(e) => onPlayerNameChange(e.target.value)}
+                    className="w-full px-4 py-2 bg-white/5 border border-gray-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                     placeholder="Enter your name"
-                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition-colors"
+                    required
                   />
                 </div>
                 <button
                   type="submit"
-                  className="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors flex items-center justify-center gap-2"
+                  className="w-full px-4 py-2 bg-orange-500 hover:bg-orange-600 rounded-lg flex items-center justify-center gap-2 transition-colors"
                 >
-                  <Play className="w-5 h-5" />
+                  <Play className="w-4 h-4" />
                   Play as Guest
                 </button>
               </form>
 
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-white/10"></div>
+                  <div className="w-full border-t border-gray-700"></div>
                 </div>
                 <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-gray-800/30 text-gray-400">or</span>
+                  <span className="px-2 bg-gray-900 text-gray-400">or</span>
                 </div>
               </div>
 
               <button
                 onClick={handleRedditLogin}
-                className="w-full px-4 py-2 bg-orange-600 hover:bg-orange-700 rounded-lg transition-colors flex items-center justify-center gap-2"
+                className="w-full px-4 py-2 bg-white/5 hover:bg-white/10 border border-gray-700 rounded-lg flex items-center justify-center gap-2 transition-colors"
               >
-                <LogIn className="w-5 h-5" />
-                Login with Reddit
+                <LogIn className="w-4 h-4" />
+                Continue with Reddit
               </button>
             </div>
           )}
 
           {error && (
-            <div className="text-red-500 text-sm text-center">
+            <div className="text-red-500 text-sm text-center mt-4">
               {error}
             </div>
           )}

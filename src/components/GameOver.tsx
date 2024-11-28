@@ -2,7 +2,7 @@ import React from 'react';
 import { Award, Star, TrendingUp, Share2 } from 'react-feather';
 import { ShareResults } from './ShareResults';
 import { Word } from '../types';
-import { useStore } from '../store/gameStore';
+import { useGameStore } from '../store/gameStore';
 import { redditService } from '../services/redditService';
 import { toast } from 'react-hot-toast';
 import { animationService } from '../services/animationService';
@@ -20,7 +20,7 @@ export const GameOver: React.FC<GameOverProps> = ({
   playerName,
   onPlayerNameChange
 }) => {
-  const { redditUser } = useStore();
+  const { redditUser } = useGameStore();
   const totalScore = words.reduce((sum, word) => sum + word.points, 0);
   const longestWord = words.reduce(
     (longest, word) => (word.word.length > longest.length ? word.word : longest),
@@ -33,7 +33,7 @@ export const GameOver: React.FC<GameOverProps> = ({
   };
 
   const handleShare = async () => {
-    if (!redditUser.isAuthenticated) {
+    if (!redditUser?.isAuthenticated) {
       toast.error('Please log in with Reddit to share your score');
       animationService.playIncorrectSound();
       return;
@@ -157,13 +157,13 @@ export const GameOver: React.FC<GameOverProps> = ({
         >
           Play Again
         </button>
-        {(redditUser.isAuthenticated || playerName) && <ShareResults />}
+        {(redditUser?.isAuthenticated || playerName) && <ShareResults />}
         <button
           onClick={handleShare}
-          disabled={!redditUser.isAuthenticated}
+          disabled={!redditUser?.isAuthenticated}
           className={`
             flex items-center justify-center gap-2 w-full px-4 py-2 rounded-lg font-medium
-            ${redditUser.isAuthenticated
+            ${redditUser?.isAuthenticated
               ? 'bg-orange-500 hover:bg-orange-600 text-white'
               : 'bg-gray-700 text-gray-400 cursor-not-allowed'
             }
@@ -171,7 +171,7 @@ export const GameOver: React.FC<GameOverProps> = ({
           `}
         >
           <Share2 className="w-5 h-5" />
-          {redditUser.isAuthenticated ? 'Share on Reddit' : 'Login to Share'}
+          {redditUser?.isAuthenticated ? 'Share on Reddit' : 'Login to Share'}
         </button>
       </div>
     </div>
