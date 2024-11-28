@@ -31,6 +31,8 @@ export interface Database {
             soundEnabled: boolean
             theme: string
           }
+          access_token: string
+          refresh_token: string
         }
         Insert: {
           id: string
@@ -43,6 +45,8 @@ export interface Database {
             soundEnabled: boolean
             theme: string
           }
+          access_token: string
+          refresh_token: string
         }
         Update: {
           id?: string
@@ -55,6 +59,8 @@ export interface Database {
             soundEnabled: boolean
             theme: string
           }
+          access_token?: string
+          refresh_token?: string
         }
       }
       leaderboard: {
@@ -107,6 +113,8 @@ export interface RedditUserDB {
     soundEnabled: boolean;
     theme: string;
   };
+  access_token: string;
+  refresh_token: string;
 }
 
 export interface LeaderboardDB {
