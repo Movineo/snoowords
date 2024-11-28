@@ -26,13 +26,13 @@ export interface Database {
           avatar_url: string | null
           karma: number
           created_at: string
-          achievements: { [key: string]: Achievement }
+          access_token: string
+          refresh_token: string
           preferences: {
             soundEnabled: boolean
             theme: string
           }
-          access_token: string
-          refresh_token: string
+          achievements: { [key: string]: Achievement }
         }
         Insert: {
           id: string
@@ -40,13 +40,13 @@ export interface Database {
           avatar_url?: string | null
           karma?: number
           created_at?: string
-          achievements?: { [key: string]: Achievement }
+          access_token: string
+          refresh_token: string
           preferences?: {
             soundEnabled: boolean
             theme: string
           }
-          access_token: string
-          refresh_token: string
+          achievements?: { [key: string]: Achievement }
         }
         Update: {
           id?: string
@@ -54,13 +54,13 @@ export interface Database {
           avatar_url?: string | null
           karma?: number
           created_at?: string
-          achievements?: { [key: string]: Achievement }
+          access_token?: string
+          refresh_token?: string
           preferences?: {
             soundEnabled: boolean
             theme: string
           }
-          access_token?: string
-          refresh_token?: string
+          achievements?: { [key: string]: Achievement }
         }
       }
       leaderboard: {
@@ -108,13 +108,13 @@ export interface RedditUserDB {
   avatar_url: string | null;
   karma: number;
   created_at: string;
-  achievements: { [key: string]: Achievement };
+  access_token: string;
+  refresh_token: string;
   preferences: {
     soundEnabled: boolean;
     theme: string;
   };
-  access_token: string;
-  refresh_token: string;
+  achievements: { [key: string]: Achievement };
 }
 
 export interface LeaderboardDB {
