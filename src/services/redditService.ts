@@ -176,7 +176,21 @@ export class RedditService {
       }
 
       // Store tokens and user data in Supabase
-      const { error } = await supabase
+      console.log('Storing user data:', {
+        id: userResponse.name,
+        name: userResponse.name,
+        avatar_url: userResponse.icon_img,
+        karma: userResponse.total_karma,
+        created_at: new Date(userResponse.created_utc * 1000).toISOString(),
+        // Don't log tokens for security
+        preferences: {
+          soundEnabled: true,
+          theme: 'default'
+        },
+        achievements: {}
+      });
+
+      const { data, error } = await supabase
         .from('reddit_users')
         .upsert(
           {
@@ -200,7 +214,12 @@ export class RedditService {
         );
 
       if (error) {
-        console.error('Error storing user data:', error);
+        console.error('Error storing user data:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        });
         toast('Failed to store user data', {
           icon: '⚠️',
           duration: 3000
@@ -208,6 +227,7 @@ export class RedditService {
         throw new Error('Failed to store user data');
       }
 
+      console.log('Successfully stored user data:', data);
       // Store user info in localStorage for quick access
       const user: RedditUser = {
         id: userResponse.name,
@@ -300,6 +320,8 @@ export class RedditService {
       return null;
     }
 
+    console.log('Requesting access token...');
+    
     const params = new URLSearchParams({
       grant_type: 'authorization_code',
       code,
@@ -307,56 +329,60 @@ export class RedditService {
     });
 
     try {
-      console.log('Requesting access token...');
       const response = await fetch('https://www.reddit.com/api/v1/access_token', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
-          'Authorization': `Basic ${btoa(`${this.clientId}:${this.clientSecret}`)}`
+          Authorization: `Basic ${btoa(`${this.clientId}:${this.clientSecret}`)}`
         },
         body: params
       });
 
       if (!response.ok) {
-        const errorData = await response.text();
-        console.error('Reddit token error:', errorData);
-        toast('Failed to get access token', {
-          icon: '⚠️',
-          duration: 3000
+        const errorText = await response.text();
+        console.error('Failed to get access token:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText
         });
         return null;
       }
 
-      const data = await response.json();
       console.log('Access token received');
-      return data;
+      const data = await response.json();
+      return data as RedditAuthResponse;
     } catch (error) {
       console.error('Error getting access token:', error);
-      toast('Failed to get access token', {
-        icon: '⚠️',
-        duration: 3000
-      });
       return null;
     }
   }
 
-  private async fetchRedditUserData(accessToken: string): Promise<RedditUserResponse> {
-    if (!accessToken) {
-      throw new Error('Not authenticated with Reddit');
-    }
+  private async fetchRedditUserData(accessToken: string): Promise<RedditUserResponse | null> {
+    try {
+      console.log('Fetching Reddit user data...');
+      const response = await fetch('https://oauth.reddit.com/api/v1/me', {
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      });
 
-    const response = await fetch('https://oauth.reddit.com/api/v1/me', {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Failed to fetch user data:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText
+        });
+        return null;
       }
-    });
 
-    if (!response.ok) {
-      throw new Error('Failed to fetch user data');
+      console.log('User data received');
+      const data = await response.json();
+      return data as RedditUserResponse;
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      return null;
     }
-
-    return response.json();
   }
 
   public async refreshUserData(): Promise<RedditUser | null> {
