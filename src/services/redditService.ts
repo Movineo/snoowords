@@ -2,6 +2,7 @@ import { supabase } from "../config/supabase";
 import { toast } from 'react-hot-toast';
 import { RedditUser } from '../types/game';
 import { Database } from '../types/supabase';
+import { PostgrestError } from '@supabase/supabase-js';
 
 type RedditUserRow = Database['public']['Tables']['reddit_users']['Row'];
 
@@ -176,58 +177,56 @@ export class RedditService {
       }
 
       // Store tokens and user data in Supabase
-      console.log('Storing user data:', {
+      const userData = {
         id: userResponse.name,
         name: userResponse.name,
         avatar_url: userResponse.icon_img,
         karma: userResponse.total_karma,
         created_at: new Date(userResponse.created_utc * 1000).toISOString(),
-        // Don't log tokens for security
+        access_token,
+        refresh_token,
         preferences: {
           soundEnabled: true,
           theme: 'default'
         },
         achievements: {}
+      };
+
+      console.log('Storing user data:', {
+        ...userData,
+        access_token: '[REDACTED]',
+        refresh_token: '[REDACTED]'
       });
 
-      const { data, error } = await supabase
-        .from('reddit_users')
-        .upsert(
-          {
-            id: userResponse.name,
-            name: userResponse.name,
-            avatar_url: userResponse.icon_img,
-            karma: userResponse.total_karma,
-            created_at: new Date(userResponse.created_utc * 1000).toISOString(),
-            access_token,
-            refresh_token,
-            preferences: {
-              soundEnabled: true,
-              theme: 'default'
-            },
-            achievements: {}
-          },
-          {
+      try {
+        const { data, error } = await supabase
+          .from('reddit_users')
+          .upsert(userData, {
             onConflict: 'id',
             ignoreDuplicates: false
-          }
-        );
+          });
 
-      if (error) {
-        console.error('Error storing user data:', {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code
-        });
-        toast('Failed to store user data', {
-          icon: '⚠️',
-          duration: 3000
-        });
+        if (error) {
+          console.error('Error storing user data:', {
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code,
+            fullError: JSON.stringify(error, null, 2)
+          });
+          toast('Failed to store user data', {
+            icon: '⚠️',
+            duration: 3000
+          });
+          throw new Error(`Failed to store user data: ${error.message}`);
+        }
+
+        console.log('Successfully stored user data:', data);
+      } catch (err) {
+        console.error('Supabase operation failed:', err);
         throw new Error('Failed to store user data');
       }
 
-      console.log('Successfully stored user data:', data);
       // Store user info in localStorage for quick access
       const user: RedditUser = {
         id: userResponse.name,
@@ -858,6 +857,33 @@ export class RedditService {
 
     if (!response.ok) {
       throw new Error('Failed to post to Reddit');
+    }
+  }
+
+  public async testSupabaseConnection(): Promise<boolean> {
+    try {
+      console.log('Testing Supabase connection...');
+      const { data, error } = await supabase
+        .from('reddit_users')
+        .select('count')
+        .limit(1);
+
+      if (error) {
+        console.error('Supabase connection test failed:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+          fullError: JSON.stringify(error, null, 2)
+        });
+        return false;
+      }
+
+      console.log('Supabase connection test successful:', data);
+      return true;
+    } catch (err) {
+      console.error('Supabase connection test error:', err);
+      return false;
     }
   }
 

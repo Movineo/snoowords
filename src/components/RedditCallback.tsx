@@ -11,6 +11,18 @@ export const RedditCallback: React.FC = () => {
   useEffect(() => {
     const handleCallback = async () => {
       console.log('RedditCallback: Starting OAuth callback handling');
+      
+      // Test Supabase connection first
+      console.log('Testing Supabase connection...');
+      const isConnected = await redditService.testSupabaseConnection();
+      if (!isConnected) {
+        console.error('Failed to connect to Supabase');
+        toast.error('Database connection failed');
+        navigate('/');
+        return;
+      }
+      console.log('Supabase connection successful');
+
       const urlParams = new URLSearchParams(window.location.search);
       const code = urlParams.get('code');
       const state = urlParams.get('state');
