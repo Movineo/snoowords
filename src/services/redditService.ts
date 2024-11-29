@@ -2,7 +2,6 @@ import { supabase } from "../config/supabase";
 import { toast } from 'react-hot-toast';
 import { RedditUser } from '../types/game';
 import { Database } from '../types/supabase';
-import { PostgrestError } from '@supabase/supabase-js';
 
 type RedditUserRow = Database['public']['Tables']['reddit_users']['Row']
 
@@ -59,6 +58,13 @@ export interface BattleParticipant {
   subreddit: string;
   score: number;
   words: string[];
+}
+
+interface RedditPost {
+  data: {
+    title?: string;
+    selftext?: string;
+  }
 }
 
 export class RedditService {
@@ -156,6 +162,8 @@ export class RedditService {
       }
 
       const { access_token, refresh_token } = tokenResponse;
+      this.accessToken = access_token;
+      this.refreshToken = refresh_token;
       
       const userResponse = await this.fetchRedditUserData(access_token);
       if (!userResponse) {
@@ -198,8 +206,6 @@ export class RedditService {
         };
 
         localStorage.setItem('reddit_user', JSON.stringify(user));
-        this.accessToken = access_token;
-        this.refreshToken = refresh_token;
         this.currentUserId = userResponse.name;
 
         return user;
@@ -490,26 +496,54 @@ export class RedditService {
     }
   }
 
-  private async processPostBatch(posts: any[], startIndex: number, batchSize: number): Promise<Set<string>> {
-    const words = new Set<string>();
-    const endIndex = Math.min(startIndex + batchSize, posts.length);
+  private async processPostsInChunks(posts: RedditPost[]): Promise<string[]> {
+    const allWords = new Set<string>();
+    const chunkSize = 5; // Process 5 posts at a time
     
-    for (let i = startIndex; i < endIndex; i++) {
-      const post = posts[i];
-      if (post.data.title) {
-        const titleWords = await this.extractWords(post.data.title);
-        titleWords.forEach(word => words.add(word.toLowerCase()));
-      }
-      if (post.data.selftext) {
-        const textWords = await this.extractWords(post.data.selftext);
-        textWords.forEach(word => words.add(word.toLowerCase()));
-      }
-      // Yield to main thread every few iterations
-      if (i % 5 === 0) {
-        await new Promise(resolve => setTimeout(resolve, 0));
-      }
+    for (let i = 0; i < posts.length; i += chunkSize) {
+      const chunk = posts.slice(i, i + chunkSize);
+      const progress = Math.round((i / posts.length) * 100);
+      toast.loading(`Processing posts: ${progress}%`);
+      
+      // Process each post in the chunk
+      await Promise.all(chunk.map(async (post: RedditPost) => {
+        const words = [];
+        if (post.data.title) {
+          words.push(...post.data.title
+            .toLowerCase()
+            .replace(/https?:\/\/\S+/g, '') // Remove URLs
+            .replace(/[^a-z\s]/g, ' ') // Keep only letters and spaces
+            .split(/\s+/) // Split into words
+            .filter((word: string) => 
+              word.length >= 3 && // Min length
+              word.length <= 15 && // Max length
+              !/^\d+$/.test(word) && // No pure numbers
+              !this.commonWords.has(word) // Skip common words
+            ));
+        }
+        
+        if (post.data.selftext) {
+          words.push(...post.data.selftext
+            .toLowerCase()
+            .replace(/https?:\/\/\S+/g, '') // Remove URLs
+            .replace(/[^a-z\s]/g, ' ') // Keep only letters and spaces
+            .split(/\s+/) // Split into words
+            .filter((word: string) => 
+              word.length >= 3 && // Min length
+              word.length <= 15 && // Max length
+              !/^\d+$/.test(word) && // No pure numbers
+              !this.commonWords.has(word) // Skip common words
+            ));
+        }
+        
+        words.forEach((word: string) => allWords.add(word));
+      }));
+      
+      // Yield to main thread between chunks
+      await new Promise(resolve => setTimeout(resolve, 0));
     }
-    return words;
+    
+    return Array.from(allWords);
   }
 
   public async fetchTrendingPosts(subreddit: string): Promise<string[]> {
@@ -517,20 +551,16 @@ export class RedditService {
       // Validate subreddit name
       const cleanSubreddit = subreddit.trim().toLowerCase().replace(/^r\//, '');
       
-      // Get access token
-      const token = window.localStorage.getItem('reddit_token');
-      if (!token) {
-        throw new Error('No Reddit access token found. Please log in first.');
-      }
+      await this.ensureValidToken();
 
-      // Show loading state
+      // Show initial loading state
       toast.loading(`Fetching posts from r/${cleanSubreddit}...`);
 
       // Fetch posts from subreddit
       const response = await fetch(`https://oauth.reddit.com/r/${cleanSubreddit}/hot.json?limit=50`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${this.accessToken}`,
           'User-Agent': 'SnooWords/1.0.0 (by /u/SnooWordsBot)',
           'Content-Type': 'application/json',
         },
@@ -538,6 +568,10 @@ export class RedditService {
 
       if (!response.ok) {
         toast.dismiss();
+        if (response.status === 401) {
+          await this.refreshAccessToken();
+          return this.fetchTrendingPosts(subreddit);
+        }
         if (response.status === 404) {
           throw new Error(`Subreddit r/${cleanSubreddit} not found`);
         }
@@ -554,71 +588,24 @@ export class RedditService {
         throw new Error(`No posts found in r/${cleanSubreddit}`);
       }
 
-      toast.loading(`Processing words from r/${cleanSubreddit}...`);
-
-      // Process posts in batches
-      const posts = data.data.children;
-      const batchSize = 10;
-      const wordSets: Set<string>[] = [];
-
-      for (let i = 0; i < posts.length; i += batchSize) {
-        const wordSet = await this.processPostBatch(posts, i, batchSize);
-        wordSets.push(wordSet);
-        
-        // Update progress
-        const progress = Math.min(100, Math.round((i + batchSize) / posts.length * 100));
-        toast.loading(`Processing words: ${progress}%`);
-      }
-
-      // Merge all word sets
-      const allWords = new Set<string>();
-      wordSets.forEach(set => {
-        set.forEach(word => {
-          if (word.length >= this.defaultMinWordLength) {
-            allWords.add(word);
-          }
-        });
-      });
-
-      const wordArray = Array.from(allWords);
-      if (wordArray.length === 0) {
+      // Process posts in chunks to prevent UI blocking
+      const words = await this.processPostsInChunks(data.data.children);
+      
+      if (words.length === 0) {
         toast.dismiss();
         throw new Error(`No valid words found in r/${cleanSubreddit}`);
       }
 
       toast.dismiss();
-      toast.success(`Successfully processed words from r/${cleanSubreddit}`);
+      toast.success(`Successfully processed ${words.length} words from r/${cleanSubreddit}`);
 
-      return wordArray.slice(0, this.defaultMaxWords);
+      return words.slice(0, 50);
     } catch (error) {
       toast.dismiss();
       console.error(`Error fetching words from r/${subreddit}:`, error);
       toast.error(error instanceof Error ? error.message : `Failed to fetch words from r/${subreddit}`);
       throw error;
     }
-  }
-
-  private async extractWords(text: string): Promise<string[]> {
-    // Remove URLs
-    text = text.replace(/https?:\/\/\S+/g, '');
-    
-    // Remove special characters and split into words
-    const words = text
-      .replace(/[^a-zA-Z\s]/g, ' ')
-      .split(/\s+/)
-      .filter(word => 
-        word.length >= this.defaultMinWordLength && 
-        word.length <= 15 && // Max word length
-        !/^\d+$/.test(word) && // No pure numbers
-        !this.commonWords.has(word.toLowerCase()) // Skip common words
-      );
-
-    // Process in smaller chunks if the word array is large
-    if (words.length > 100) {
-      await new Promise(resolve => setTimeout(resolve, 0));
-    }
-
-    return words;
   }
 
   public async createWordPack(
@@ -1011,6 +998,54 @@ export class RedditService {
 
   public isEnabled(): boolean {
     return this.enableRedditIntegration && Boolean(this.clientId) && Boolean(this.clientSecret);
+  }
+
+  private async refreshAccessToken(): Promise<void> {
+    if (!this.refreshToken) {
+      throw new Error('No refresh token available');
+    }
+
+    const params = new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: this.refreshToken
+    });
+
+    try {
+      const response = await fetch('https://www.reddit.com/api/v1/access_token', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Basic ${btoa(`${this.clientId}:${this.clientSecret}`)}`,
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: params
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to refresh token: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      this.accessToken = data.access_token;
+      
+      // Update refresh token if provided
+      if (data.refresh_token) {
+        this.refreshToken = data.refresh_token;
+      }
+    } catch (error) {
+      console.error('Error refreshing token:', error);
+      // Clear tokens on refresh failure
+      this.accessToken = null;
+      this.refreshToken = null;
+      throw error;
+    }
+  }
+
+  private async ensureValidToken(): Promise<void> {
+    if (!this.accessToken && this.refreshToken) {
+      await this.refreshAccessToken();
+    } else if (!this.accessToken) {
+      throw new Error('Please log in with Reddit first');
+    }
   }
 
   private commonWords = new Set([
