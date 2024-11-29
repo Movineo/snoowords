@@ -256,17 +256,23 @@ export interface Achievement {
 export interface RedditUser {
   id: string;
   name: string;
-  isAuthenticated: boolean;
   avatarUrl?: string;
   karma: number;
-  trophies?: number;
-  accessToken?: string;
   created_at: string;
-  achievements: { [key: string]: Achievement };
-  preferences?: {
+  achievements: { [key: string]: {
+    id: string;
+    name: string;
+    description: string;
+    type: 'score' | 'words' | 'streak' | 'karma';
+    requirement: number;
+    karmaReward?: number;
+    unlockedAt?: string;
+  }};
+  preferences: {
     soundEnabled: boolean;
     theme: string;
   };
+  isAuthenticated?: boolean;
 }
 
 export type GameStatus = 'idle' | 'playing' | 'paused' | 'ended' | 'finished';

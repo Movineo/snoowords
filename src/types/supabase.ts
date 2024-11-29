@@ -63,6 +63,92 @@ export interface Database {
           achievements?: { [key: string]: Achievement }
         }
       }
+      subreddit_battles: {
+        Row: {
+          id: string
+          subreddit1: string
+          subreddit2: string
+          start_time: string
+          end_time: string
+          scores: { [subreddit: string]: number }
+          participants: { [subreddit: string]: string[] }
+          word_pack: {
+            id: string
+            name: string
+            theme: string
+            subreddit: string
+            words: string[]
+            category: string
+            difficulty: 'easy' | 'medium' | 'hard'
+            created_at: string
+            updated_at: string
+            total_words: number
+            average_word_length: number
+            description?: string
+            upvotes: number
+            creator: string
+          }
+          status: 'active' | 'completed'
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id: string
+          subreddit1: string
+          subreddit2: string
+          start_time?: string
+          end_time: string
+          scores?: { [subreddit: string]: number }
+          participants?: { [subreddit: string]: string[] }
+          word_pack: {
+            id: string
+            name: string
+            theme: string
+            subreddit: string
+            words: string[]
+            category: string
+            difficulty: 'easy' | 'medium' | 'hard'
+            created_at: string
+            updated_at: string
+            total_words: number
+            average_word_length: number
+            description?: string
+            upvotes: number
+            creator: string
+          }
+          status?: 'active' | 'completed'
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          subreddit1?: string
+          subreddit2?: string
+          start_time?: string
+          end_time?: string
+          scores?: { [subreddit: string]: number }
+          participants?: { [subreddit: string]: string[] }
+          word_pack?: {
+            id: string
+            name: string
+            theme: string
+            subreddit: string
+            words: string[]
+            category: string
+            difficulty: 'easy' | 'medium' | 'hard'
+            created_at: string
+            updated_at: string
+            total_words: number
+            average_word_length: number
+            description?: string
+            upvotes: number
+            creator: string
+          }
+          status?: 'active' | 'completed'
+          created_at?: string
+          updated_at?: string
+        }
+      }
       leaderboard: {
         Row: {
           id: string

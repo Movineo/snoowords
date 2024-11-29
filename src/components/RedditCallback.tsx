@@ -72,20 +72,18 @@ export const RedditCallback: React.FC = () => {
       try {
         console.log('RedditCallback: Exchanging code for token...');
         const userData = await redditService.handleCallback(code, state);
-        console.log('RedditCallback: Token exchange successful');
         
-        if (userData) {
-          console.log('RedditCallback: Setting user data');
-          setRedditUser(userData);
-          toast.success('Successfully logged in with Reddit!');
-          localStorage.removeItem('reddit_auth_state'); // Clean up state
-        } else {
-          console.error('Failed to get user data from Reddit');
-          toast.error('Failed to get user data from Reddit');
+        if (!userData) {
+          throw new Error('Failed to get user data from Reddit');
         }
+        
+        console.log('RedditCallback: Token exchange and user data fetch successful');
+        setRedditUser(userData);
+        toast.success('Successfully logged in with Reddit!');
+        localStorage.removeItem('reddit_auth_state'); // Clean up state
       } catch (err) {
-        console.error('RedditCallback: Error during token exchange:', err);
-        toast.error('Failed to complete Reddit login');
+        console.error('RedditCallback: Error during authentication:', err);
+        toast.error(err instanceof Error ? err.message : 'Failed to complete Reddit login');
       }
 
       navigate('/');

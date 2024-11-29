@@ -165,13 +165,11 @@ export class RedditService {
 
       // Store tokens and user data in Supabase
       const userData = {
-        id: userResponse.name,
-        name: userResponse.name,
-        avatar_url: userResponse.icon_img,
-        karma: userResponse.total_karma,
-        created_at: new Date(userResponse.created_utc * 1000).toISOString(),
+        username: userResponse.name,
         access_token,
         refresh_token,
+        karma: userResponse.total_karma,
+        avatar_url: userResponse.icon_img,
         last_login: new Date().toISOString()
       };
 
@@ -179,7 +177,7 @@ export class RedditService {
         const { error } = await supabase
           .from('reddit_users')
           .upsert(userData, {
-            onConflict: 'id'
+            onConflict: 'username'
           });
 
         if (error) throw error;
@@ -295,7 +293,7 @@ export class RedditService {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
           'Authorization': `Basic ${authString}`,
-          'User-Agent': 'SnooWords/1.0'
+          'User-Agent': 'SnooWords/1.0 (by /u/YourRedditUsername)'
         },
         body: params.toString()
       });
@@ -311,15 +309,19 @@ export class RedditService {
           redirectUri: this.redirectUri,
           code: code.substring(0, 5) + '...'
         });
-        return null;
+        throw new Error(`Failed to get access token: ${response.status} ${response.statusText}`);
       }
 
       const data = await response.json();
+      if (!data.access_token) {
+        throw new Error('Access token missing from response');
+      }
+      
       console.log('Access token received successfully');
       return data as RedditAuthResponse;
     } catch (error) {
       console.error('Error getting access token:', error);
-      return null;
+      throw error;
     }
   }
 
@@ -327,17 +329,15 @@ export class RedditService {
     return this.redirectUri;
   }
 
-  private async fetchRedditUserData(accessToken: string): Promise<RedditUserResponse | null> {
+  private async fetchRedditUserData(accessToken: string): Promise<RedditUserResponse> {
     try {
-      console.log('Fetching Reddit user data...');
       const response = await fetch('https://oauth.reddit.com/api/v1/me', {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
-          'User-Agent': 'SnooWords/1.0'
+          'User-Agent': 'SnooWords/1.0 (by /u/YourRedditUsername)',
+          'Accept': 'application/json'
         }
       });
-
-      console.log('User data response status:', response.status);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -346,15 +346,19 @@ export class RedditService {
           statusText: response.statusText,
           error: errorText
         });
-        return null;
+        throw new Error(`Failed to fetch user data: ${response.status} ${response.statusText}`);
       }
 
       const data = await response.json();
-      console.log('User data received successfully');
+      
+      if (!data.name) {
+        throw new Error('Invalid user data received from Reddit');
+      }
+
       return data as RedditUserResponse;
     } catch (error) {
-      console.error('Error fetching user data:', error);
-      return null;
+      console.error('Error fetching Reddit user data:', error);
+      throw error;
     }
   }
 
@@ -403,7 +407,7 @@ export class RedditService {
     try {
       const { data: user, error } = await supabase
         .from('reddit_users')
-        .select('access_token, name')
+        .select('access_token, username')
         .single();
 
       if (error) {
@@ -486,27 +490,135 @@ export class RedditService {
     }
   }
 
-  private async fetchTrendingPosts(subreddit: string): Promise<string[]> {
-    if (!this.accessToken) {
-      throw new Error('Not authenticated with Reddit');
-    }
-
-    const response = await fetch(
-      `https://oauth.reddit.com/r/${subreddit}/top.json?t=day&limit=25`,
-      {
-        headers: {
-          'Authorization': `Bearer ${this.accessToken}`,
-          'Content-Type': 'application/json',
-        }
+  private async processPostBatch(posts: any[], startIndex: number, batchSize: number): Promise<Set<string>> {
+    const words = new Set<string>();
+    const endIndex = Math.min(startIndex + batchSize, posts.length);
+    
+    for (let i = startIndex; i < endIndex; i++) {
+      const post = posts[i];
+      if (post.data.title) {
+        const titleWords = await this.extractWords(post.data.title);
+        titleWords.forEach(word => words.add(word.toLowerCase()));
       }
-    );
+      if (post.data.selftext) {
+        const textWords = await this.extractWords(post.data.selftext);
+        textWords.forEach(word => words.add(word.toLowerCase()));
+      }
+      // Yield to main thread every few iterations
+      if (i % 5 === 0) {
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+    }
+    return words;
+  }
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch trending posts: ${response.statusText}`);
+  public async fetchTrendingPosts(subreddit: string): Promise<string[]> {
+    try {
+      // Validate subreddit name
+      const cleanSubreddit = subreddit.trim().toLowerCase().replace(/^r\//, '');
+      
+      // Get access token
+      const token = window.localStorage.getItem('reddit_token');
+      if (!token) {
+        throw new Error('No Reddit access token found. Please log in first.');
+      }
+
+      // Show loading state
+      toast.loading(`Fetching posts from r/${cleanSubreddit}...`);
+
+      // Fetch posts from subreddit
+      const response = await fetch(`https://oauth.reddit.com/r/${cleanSubreddit}/hot.json?limit=50`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'User-Agent': 'SnooWords/1.0.0 (by /u/SnooWordsBot)',
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        toast.dismiss();
+        if (response.status === 404) {
+          throw new Error(`Subreddit r/${cleanSubreddit} not found`);
+        }
+        if (response.status === 403) {
+          throw new Error(`Access denied to r/${cleanSubreddit}. The subreddit might be private.`);
+        }
+        throw new Error(`Failed to fetch posts from r/${cleanSubreddit}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      if (!data.data?.children?.length) {
+        toast.dismiss();
+        throw new Error(`No posts found in r/${cleanSubreddit}`);
+      }
+
+      toast.loading(`Processing words from r/${cleanSubreddit}...`);
+
+      // Process posts in batches
+      const posts = data.data.children;
+      const batchSize = 10;
+      const wordSets: Set<string>[] = [];
+
+      for (let i = 0; i < posts.length; i += batchSize) {
+        const wordSet = await this.processPostBatch(posts, i, batchSize);
+        wordSets.push(wordSet);
+        
+        // Update progress
+        const progress = Math.min(100, Math.round((i + batchSize) / posts.length * 100));
+        toast.loading(`Processing words: ${progress}%`);
+      }
+
+      // Merge all word sets
+      const allWords = new Set<string>();
+      wordSets.forEach(set => {
+        set.forEach(word => {
+          if (word.length >= this.defaultMinWordLength) {
+            allWords.add(word);
+          }
+        });
+      });
+
+      const wordArray = Array.from(allWords);
+      if (wordArray.length === 0) {
+        toast.dismiss();
+        throw new Error(`No valid words found in r/${cleanSubreddit}`);
+      }
+
+      toast.dismiss();
+      toast.success(`Successfully processed words from r/${cleanSubreddit}`);
+
+      return wordArray.slice(0, this.defaultMaxWords);
+    } catch (error) {
+      toast.dismiss();
+      console.error(`Error fetching words from r/${subreddit}:`, error);
+      toast.error(error instanceof Error ? error.message : `Failed to fetch words from r/${subreddit}`);
+      throw error;
+    }
+  }
+
+  private async extractWords(text: string): Promise<string[]> {
+    // Remove URLs
+    text = text.replace(/https?:\/\/\S+/g, '');
+    
+    // Remove special characters and split into words
+    const words = text
+      .replace(/[^a-zA-Z\s]/g, ' ')
+      .split(/\s+/)
+      .filter(word => 
+        word.length >= this.defaultMinWordLength && 
+        word.length <= 15 && // Max word length
+        !/^\d+$/.test(word) && // No pure numbers
+        !this.commonWords.has(word.toLowerCase()) // Skip common words
+      );
+
+    // Process in smaller chunks if the word array is large
+    if (words.length > 100) {
+      await new Promise(resolve => setTimeout(resolve, 0));
     }
 
-    const data = await response.json();
-    return data.data.children.map((child: any) => child.data.title);
+    return words;
   }
 
   public async createWordPack(
@@ -674,52 +786,74 @@ export class RedditService {
     }
   }
 
-  private extractWords(text: string): string[] {
-    // Remove URLs, special characters, and normalize text
-    const cleanText = text
-      .toLowerCase()
-      .replace(/https?:\/\/\S+/g, '')
-      .replace(/[^a-z0-9\s]/g, ' ');
-
-    // Split into words and filter
-    return cleanText
-      .split(/\s+/)
-      .filter(word => {
-        return word.length >= 3 && // Min length
-               word.length <= 15 && // Max length
-               !['the', 'and', 'a', 'an', 'is', 'in', 'it', 'of', 'to', 'for', 'with', 'on', 'at', 'by', 'from'].includes(word); // Filter common words
-      });
-  }
-
   public async createSubredditBattle(subreddit1: string, subreddit2: string): Promise<SubredditBattle> {
-    const wordPack = await this.generateSubredditWordPack([subreddit1, subreddit2]);
-  
-    const battle: SubredditBattle = {
-      id: crypto.randomUUID(),
-      subreddit1,
-      subreddit2,
-      startTime: new Date().toISOString(),
-      endTime: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
-      scores: {
-        [subreddit1]: 0,
-        [subreddit2]: 0
-      },
-      participants: {
-        [subreddit1]: [],
-        [subreddit2]: []
-      },
-      wordPack,
-      status: 'pending'
-    };
+    if (!subreddit1 || !subreddit2) {
+      throw new Error('Both subreddits must be specified');
+    }
 
-    const { data, error } = await supabase
-      .from('subreddit_battles')
-      .insert(battle)
-      .select()
-      .single();
+    try {
+      // Generate word pack first
+      const wordPack = await this.generateSubredditWordPack([subreddit1, subreddit2]);
+      
+      const now = new Date().toISOString();
+      const battleData = {
+        id: crypto.randomUUID(),
+        subreddit1,
+        subreddit2,
+        start_time: now,
+        end_time: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
+        scores: {
+          [subreddit1]: 0,
+          [subreddit2]: 0
+        },
+        participants: {
+          [subreddit1]: [],
+          [subreddit2]: []
+        },
+        word_pack: {
+          ...wordPack,
+          words: wordPack.words || [],
+          total_words: wordPack.words?.length || 0,
+          average_word_length: wordPack.words?.length 
+            ? Math.round(wordPack.words.reduce((acc, word) => acc + word.length, 0) / wordPack.words.length)
+            : 0
+        },
+        status: 'active'
+      };
 
-    if (error) throw error;
-    return data;
+      console.log('Creating battle with data:', battleData);
+
+      const { data, error } = await supabase
+        .from('subreddit_battles')
+        .insert([battleData])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating battle:', error);
+        throw new Error(`Failed to create battle: ${error.message}`);
+      }
+
+      if (!data) {
+        throw new Error('No data returned from battle creation');
+      }
+
+      // Transform the data back to our frontend format
+      return {
+        id: data.id,
+        subreddit1: data.subreddit1,
+        subreddit2: data.subreddit2,
+        startTime: data.start_time,
+        endTime: data.end_time,
+        scores: data.scores,
+        participants: data.participants,
+        wordPack: data.word_pack,
+        status: data.status
+      } as SubredditBattle;
+    } catch (error) {
+      console.error('Error in createSubredditBattle:', error);
+      throw error;
+    }
   }
 
   public async generateSubredditWordPack(subreddits: string[]): Promise<RedditWordPack> {
@@ -727,29 +861,43 @@ export class RedditService {
     const allWords: string[] = [];
     for (const subreddit of subreddits) {
       try {
+        if (!subreddit) {
+          console.error('Invalid subreddit name');
+          continue;
+        }
         const words = await this.fetchTrendingPosts(subreddit);
-        allWords.push(...words);
+        if (words && words.length > 0) {
+          allWords.push(...words);
+        }
       } catch (error) {
         console.error(`Error fetching words from r/${subreddit}:`, error);
+        toast.error(`Failed to fetch words from r/${subreddit}. Please try another subreddit.`);
       }
     }
 
+    // If no words were fetched, throw an error
+    if (allWords.length === 0) {
+      throw new Error('No words could be fetched from the specified subreddits');
+    }
+
     const now = new Date().toISOString();
+    const uniqueWords = [...new Set(allWords)].slice(0, this.defaultMaxWords);
+    
     return {
       id: `battle-${crypto.randomUUID()}`,
       name: `${subreddits.join(' vs ')} Battle Pack`,
       theme: 'Subreddit Battle',
       subreddit: subreddits.join('+'),
-      words: [...new Set(allWords)],
+      words: uniqueWords,
       category: 'battle',
       difficulty: 'medium',
       created_at: now,
       updated_at: now,
-      total_words: allWords.length,
-      average_word_length: allWords.reduce((sum, word) => sum + word.length, 0) / allWords.length,
-      description: `Special word pack for the battle between r/${subreddits.join(' and r/')}`,
+      total_words: uniqueWords.length,
+      average_word_length: Math.round(uniqueWords.reduce((acc, word) => acc + word.length, 0) / uniqueWords.length),
+      description: `Battle between r/${subreddits.join(' and r/')}`,
       upvotes: 0,
-      creator: 'system'
+      creator: this.currentUserId || 'system'
     };
   }
 
@@ -864,6 +1012,14 @@ export class RedditService {
   public isEnabled(): boolean {
     return this.enableRedditIntegration && Boolean(this.clientId) && Boolean(this.clientSecret);
   }
+
+  private commonWords = new Set([
+    'the', 'be', 'to', 'of', 'and', 'a', 'in', 'that', 'have', 'i',
+    'it', 'for', 'not', 'on', 'with', 'he', 'as', 'you', 'do', 'at',
+    'this', 'but', 'his', 'by', 'from', 'they', 'we', 'say', 'her', 'she',
+    'or', 'an', 'will', 'my', 'one', 'all', 'would', 'there', 'their', 'what',
+    'so', 'up', 'out', 'if', 'about', 'who', 'get', 'which', 'go', 'me'
+  ]);
 }
 
 // Export a singleton instance

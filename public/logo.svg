@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background Circle -->
+  <circle cx="256" cy="256" r="240" fill="#FF4500"/>
+  
+  <!-- Snoo Head -->
+  <circle cx="256" cy="236" r="120" fill="white"/>
+  
+  <!-- Snoo Antenna -->
+  <path d="M256 116 Q256 76 276 56 Q296 36 316 56" stroke="white" stroke-width="24" stroke-linecap="round" fill="none"/>
+  <circle cx="316" cy="56" r="16" fill="white"/>
+  
+  <!-- Eyes -->
+  <circle cx="206" cy="216" r="16" fill="#FF4500"/>
+  <circle cx="306" cy="216" r="16" fill="#FF4500"/>
+  
+  <!-- Letter Tiles -->
+  <g transform="translate(156, 266)">
+    <!-- S -->
+    <rect x="0" y="0" width="40" height="40" rx="8" fill="white" stroke="#FF4500" stroke-width="4"/>
+    <text x="20" y="28" font-family="Arial Black" font-size="28" fill="#FF4500" text-anchor="middle">S</text>
+  </g>
+  <g transform="translate(206, 266)">
+    <!-- N -->
+    <rect x="0" y="0" width="40" height="40" rx="8" fill="white" stroke="#FF4500" stroke-width="4"/>
+    <text x="20" y="28" font-family="Arial Black" font-size="28" fill="#FF4500" text-anchor="middle">N</text>
+  </g>
+  <g transform="translate(256, 266)">
+    <!-- O -->
+    <rect x="0" y="0" width="40" height="40" rx="8" fill="white" stroke="#FF4500" stroke-width="4"/>
+    <text x="20" y="28" font-family="Arial Black" font-size="28" fill="#FF4500" text-anchor="middle">O</text>
+  </g>
+  <g transform="translate(306, 266)">
+    <!-- O -->
+    <rect x="0" y="0" width="40" height="40" rx="8" fill="white" stroke="#FF4500" stroke-width="4"/>
+    <text x="20" y="28" font-family="Arial Black" font-size="28" fill="#FF4500" text-anchor="middle">O</text>
+  </g>
+</svg>
