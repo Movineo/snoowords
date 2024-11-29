@@ -17,11 +17,19 @@ export const RedditCallback: React.FC = () => {
       const isConnected = await redditService.testSupabaseConnection();
       if (!isConnected) {
         console.error('Failed to connect to Supabase');
-        toast.error('Database connection failed');
+        toast.error('Database connection failed. Please try again later.');
         navigate('/');
         return;
       }
       console.log('Supabase connection successful');
+
+      // Check if Reddit integration is enabled
+      if (!redditService.isEnabled()) {
+        console.error('Reddit integration is disabled');
+        toast.error('Reddit integration is currently disabled');
+        navigate('/');
+        return;
+      }
 
       const urlParams = new URLSearchParams(window.location.search);
       const code = urlParams.get('code');
@@ -31,7 +39,8 @@ export const RedditCallback: React.FC = () => {
       console.log('RedditCallback: Received params:', { 
         code: code ? 'present' : 'missing',
         state: state ? 'present' : 'missing',
-        error: error || 'none'
+        error: error || 'none',
+        redirectUri: redditService.getRedirectUri()
       });
 
       if (error) {
@@ -48,6 +57,18 @@ export const RedditCallback: React.FC = () => {
         return;
       }
 
+      // Verify state matches
+      const storedState = localStorage.getItem('reddit_auth_state');
+      if (!storedState || state !== storedState) {
+        console.error('State mismatch:', {
+          received: state,
+          stored: storedState
+        });
+        toast.error('Invalid authentication state');
+        navigate('/');
+        return;
+      }
+
       try {
         console.log('RedditCallback: Exchanging code for token...');
         const userData = await redditService.handleCallback(code, state);
@@ -57,8 +78,10 @@ export const RedditCallback: React.FC = () => {
           console.log('RedditCallback: Setting user data');
           setRedditUser(userData);
           toast.success('Successfully logged in with Reddit!');
+          localStorage.removeItem('reddit_auth_state'); // Clean up state
         } else {
-          toast.error('Failed to get user data');
+          console.error('Failed to get user data from Reddit');
+          toast.error('Failed to get user data from Reddit');
         }
       } catch (err) {
         console.error('RedditCallback: Error during token exchange:', err);
