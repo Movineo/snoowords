@@ -1,7 +1,9 @@
 import { supabase } from '../config/supabase';
 import { Word, GameMode, Challenge, CommunityPuzzle, SubredditPack } from '../types/game';
+import { isValidWord } from '../utils/gameLogic';
 import { mockCommunityPuzzles } from './mockCommunityPuzzles';
 import { mockSubredditPacks } from './mockData';
+
 
 export interface GameSession {
   score: number;
@@ -328,6 +330,8 @@ export const gameService = {
         upvotes: pack.upvotes || 0,
         creator: pack.creator || 'anonymous',
         created_at: pack.created_at || new Date().toISOString(),
+        updated_at: pack.updated_at || new Date().toISOString(),
+        lastUpdated: pack.updated_at || new Date().toISOString(),
         description: pack.description || `Word pack for r/${pack.subreddit}`
       }));
     } catch (error) {
@@ -388,43 +392,10 @@ export const gameService = {
       console.error('Error reading cache:', e);
     }
 
-    // Check local dictionary first
-    const commonWords = new Set([
-      'the', 'be', 'to', 'of', 'and', 'in', 'that', 'have', 'it', 'for',
-      'not', 'on', 'with', 'he', 'as', 'you', 'do', 'at', 'this', 'but',
-      'his', 'by', 'from', 'they', 'we', 'say', 'her', 'she', 'or', 'an',
-      'will', 'my', 'one', 'all', 'would', 'there', 'their', 'what', 'so',
-      'up', 'out', 'if', 'about', 'who', 'get', 'which', 'go', 'me', 'when'
-    ]);
-
-    if (commonWords.has(word_lower)) {
-      this.cacheWord(word_lower, true);
-      return true;
-    }
-
-    // Try Free Dictionary API
-    try {
-      const response = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word_lower}`);
-      const isValid = response.ok;
-      this.cacheWord(word_lower, isValid);
-      if (isValid) return true;
-    } catch (error) {
-      console.error('Error with Free Dictionary API:', error);
-    }
-
-    // Fallback to Datamuse API
-    try {
-      const response = await fetch(`https://api.datamuse.com/words?sp=${word_lower}&max=1`);
-      if (!response.ok) throw new Error('Datamuse API error');
-      
-      const data = await response.json();
-      const isValid = data.length > 0 && data[0].word.toLowerCase() === word_lower;
-      this.cacheWord(word_lower, isValid);
-      return isValid;
-    } catch (error) {
-      console.error('Error with Datamuse API:', error);
-      return false;
-    }
+    // Use the proper word validation from gameLogic
+    const isValid = await isValidWord(word_lower);
+    this.cacheWord(word_lower, isValid);
+    return isValid;
   },
 
   cacheWord(word: string, isValid: boolean) {

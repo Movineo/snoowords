@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { X } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 
 export const WordInput: React.FC = () => {
   const { selectedLetters, letters, submitWord, clearSelection, setCurrentWord } = useGameStore();
@@ -15,11 +16,16 @@ export const WordInput: React.FC = () => {
     setShowError(false);
   }, [selectedLetters, letters]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (inputValue.length >= 3) {
       setCurrentWord(inputValue);
-      submitWord();
+      const success = await submitWord();
+      if (success) {
+        toast.success(`Word "${inputValue}" added!`);
+      } else {
+        toast.error(`"${inputValue}" is not a valid word`);
+      }
       setInputValue('');
       setShowError(false);
     } else {
@@ -34,12 +40,17 @@ export const WordInput: React.FC = () => {
     setShowError(false);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       if (inputValue.length >= 3) {
         setCurrentWord(inputValue);
-        submitWord();
+        const success = await submitWord();
+        if (success) {
+          toast.success(`Word "${inputValue}" added!`);
+        } else {
+          toast.error(`"${inputValue}" is not a valid word`);
+        }
         setInputValue('');
         setShowError(false);
       } else {

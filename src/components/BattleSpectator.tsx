@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, Trophy, Star } from 'lucide-react';
+import { Trophy, Star, Clock, Eye, MessageSquare } from 'lucide-react';
 import { supabase } from '../config/supabase';
 import { SubredditBattle } from '../services/redditService';
 import confetti from 'canvas-confetti';
@@ -36,12 +36,12 @@ export const BattleSpectator: React.FC<SpectatorProps> = ({ battleId }) => {
 
   useEffect(() => {
     loadBattle();
-    subscribeToLiveUpdates();
-    trackSpectators();
-    initializeTeamStats();
+    const channels = subscribeToLiveUpdates();
+    const presenceChannel = trackSpectators();
 
     return () => {
-      supabase.removeAllChannels();
+      channels.forEach(channel => channel.unsubscribe());
+      presenceChannel.unsubscribe();
     };
   }, [battleId]);
 
@@ -171,6 +171,8 @@ export const BattleSpectator: React.FC<SpectatorProps> = ({ battleId }) => {
         }
       })
       .subscribe();
+
+    return [battleChannel, actionsChannel];
   };
 
   const trackSpectators = () => {
@@ -184,6 +186,8 @@ export const BattleSpectator: React.FC<SpectatorProps> = ({ battleId }) => {
 
     // Track this spectator
     presence.track({ user: 'spectator', time: new Date().toISOString() });
+
+    return presence;
   };
 
   if (!battle) {
@@ -193,78 +197,136 @@ export const BattleSpectator: React.FC<SpectatorProps> = ({ battleId }) => {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Battle Status Bar */}
-      <div className="bg-gray-800 text-white p-3 sm:p-4 rounded-lg flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-4">
-        <span className="font-bold text-base sm:text-lg order-1 sm:order-none">
-          {battle?.status === 'active' ? 'Battle in Progress' : battle?.status}
-        </span>
-        <span className="text-lg sm:text-xl font-mono order-2 sm:order-none">{timeRemaining}</span>
-        <span className="text-xs sm:text-sm order-3 sm:order-none">
-          {spectatorCount} {spectatorCount === 1 ? 'spectator' : 'spectators'}
-        </span>
+      <div className="bg-gradient-to-r from-gray-800 to-gray-900 text-white p-4 rounded-xl shadow-lg flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+        <div className="flex items-center gap-3">
+          <div className={`w-3 h-3 rounded-full ${battle?.status === 'active' ? 'bg-green-500 animate-pulse' : 'bg-gray-500'}`} />
+          <span className="font-bold text-lg">
+            {battle?.status === 'active' ? 'Battle in Progress' : battle?.status}
+          </span>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Clock className="w-5 h-5 text-blue-400" />
+            <span className="text-xl font-mono bg-gray-700/50 px-3 py-1 rounded-lg">{timeRemaining}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Eye className="w-5 h-5 text-purple-400" />
+            <span className="text-sm">
+              {spectatorCount} {spectatorCount === 1 ? 'spectator' : 'spectators'}
+            </span>
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column - Team 1 */}
         <div className="space-y-4">
           <motion.div 
-            className="p-3 sm:p-4 bg-blue-100 rounded-lg"
-            animate={{ scale: battle?.scores[battle.subreddit1] > battle?.scores[battle.subreddit2] ? 1.02 : 1 }}
+            className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl shadow-lg overflow-hidden"
+            animate={{ 
+              scale: battle?.scores[battle.subreddit1] > battle?.scores[battle.subreddit2] ? 1.02 : 1,
+              boxShadow: battle?.scores[battle.subreddit1] > battle?.scores[battle.subreddit2] 
+                ? '0 4px 20px rgba(59, 130, 246, 0.5)' 
+                : '0 4px 6px rgba(0, 0, 0, 0.1)'
+            }}
+            transition={{ duration: 0.3 }}
           >
-            <h3 className="text-lg sm:text-xl font-bold">r/{battle?.subreddit1}</h3>
-            <p className="text-2xl sm:text-3xl font-bold">{battle?.scores[battle?.subreddit1]} points</p>
-            <div className="mt-2 space-y-1 text-xs sm:text-sm">
-              <p className="flex items-center gap-2">
-                <Users size={16} />
-                {battle?.participants[battle?.subreddit1]?.length || 0} players
-              </p>
-              {teamStats[battle?.subreddit1] && (
-                <>
-                  <p>Words Found: {teamStats[battle?.subreddit1].wordCount}</p>
-                  <p className="truncate">
-                    Longest Word: {teamStats[battle?.subreddit1].longestWord}
-                  </p>
-                  <p>Power-ups: {teamStats[battle?.subreddit1].powerUpsUsed}</p>
-                </>
-              )}
+            <div className="p-6 text-white">
+              <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                <MessageSquare className="w-6 h-6" />
+                r/{battle?.subreddit1}
+              </h3>
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-white/10 rounded-lg">
+                    <Trophy className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="text-3xl font-bold">{battle?.scores[battle?.subreddit1]}</div>
+                    <div className="text-sm text-blue-200">points</div>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  {teamStats[battle?.subreddit1] && (
+                    <>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-blue-200">Words Found</span>
+                        <span className="font-bold">{teamStats[battle?.subreddit1].wordCount}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-blue-200">Longest Word</span>
+                        <span className="font-bold truncate ml-2">{teamStats[battle?.subreddit1].longestWord}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-blue-200">Power-ups Used</span>
+                        <span className="font-bold">{teamStats[battle?.subreddit1].powerUpsUsed}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-blue-200">Players</span>
+                        <span className="font-bold">{battle?.participants[battle?.subreddit1]?.length || 0}</span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="px-6 py-4 bg-gradient-to-br from-blue-600/50 to-indigo-700/50 backdrop-blur-sm">
+              <div className="text-sm text-blue-100">
+                Team Progress
+                <div className="mt-2 h-2.5 bg-white/10 rounded-full overflow-hidden">
+                  <motion.div 
+                    className="h-full bg-gradient-to-r from-blue-300 to-indigo-300 rounded-full"
+                    initial={{ width: 0 }}
+                    animate={{ 
+                      width: `${Math.min(100, (battle?.scores[battle.subreddit1] / 1000) * 100)}%` 
+                    }}
+                    transition={{ duration: 0.5, ease: "easeOut" }}
+                  />
+                </div>
+              </div>
             </div>
           </motion.div>
         </div>
 
         {/* Middle Column - Live Feed */}
         <div className="lg:col-span-1 space-y-4 order-first lg:order-none">
-          <div className="p-3 sm:p-4 bg-gray-100 rounded-lg">
-            <h3 className="font-bold mb-4 text-base sm:text-lg">Live Battle Feed</h3>
-            <div className="space-y-2 max-h-[50vh] lg:max-h-96 overflow-y-auto">
-              <AnimatePresence>
-                {liveActions.map(action => (
-                  <motion.div
-                    key={action.id}
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    className={`p-2 sm:p-3 ${
-                      action.type === 'achievement' ? 'bg-yellow-50' :
-                      action.type === 'power_up' ? 'bg-purple-50' :
-                      'bg-white'
-                    } rounded-md text-xs sm:text-sm border border-gray-200`}
-                  >
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {action.type === 'word_found' && <Star size={14} className="text-yellow-500 shrink-0" />}
-                      {action.type === 'power_up' && <Trophy size={14} className="text-purple-500 shrink-0" />}
-                      {action.type === 'achievement' && <Trophy size={14} className="text-gold-500 shrink-0" />}
-                      <span className="font-bold truncate">{action.player}</span>
-                      <span className="text-gray-500">•</span>
-                      <span className="truncate">r/{action.subreddit}</span>
-                      {action.points && (
-                        <span className="ml-auto text-green-500 shrink-0">+{action.points}</span>
-                      )}
-                    </div>
-                    <p className="mt-1 break-words">{action.details}</p>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
+          <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100">
+            <div className="p-4 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+              <h3 className="font-bold text-lg text-gray-800">Live Battle Feed</h3>
+            </div>
+            <div className="p-4">
+              <div className="space-y-3 max-h-[50vh] lg:max-h-[60vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                <AnimatePresence>
+                  {liveActions.map(action => (
+                    <motion.div
+                      key={action.id}
+                      initial={{ opacity: 0, y: -20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      className={`p-3 rounded-lg border ${
+                        action.type === 'achievement' ? 'bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-200' :
+                        action.type === 'power_up' ? 'bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200' :
+                        'bg-gradient-to-r from-gray-50 to-white border-gray-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {action.type === 'word_found' && <Star size={16} className="text-yellow-500 shrink-0" />}
+                        {action.type === 'power_up' && <Trophy size={16} className="text-purple-500 shrink-0" />}
+                        {action.type === 'achievement' && <Trophy size={16} className="text-amber-500 shrink-0" />}
+                        <span className="font-semibold truncate">{action.player}</span>
+                        <span className="text-gray-400">•</span>
+                        <span className="text-gray-600 truncate">r/{action.subreddit}</span>
+                        {action.points && (
+                          <span className="ml-auto text-green-500 font-semibold shrink-0">+{action.points}</span>
+                        )}
+                      </div>
+                      <p className="mt-1.5 text-gray-600 break-words text-sm">{action.details}</p>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
             </div>
           </div>
         </div>
@@ -272,25 +334,68 @@ export const BattleSpectator: React.FC<SpectatorProps> = ({ battleId }) => {
         {/* Right Column - Team 2 */}
         <div className="space-y-4">
           <motion.div 
-            className="p-3 sm:p-4 bg-red-100 rounded-lg"
-            animate={{ scale: battle?.scores[battle.subreddit2] > battle?.scores[battle.subreddit1] ? 1.02 : 1 }}
+            className="bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl shadow-lg overflow-hidden"
+            animate={{ 
+              scale: battle?.scores[battle.subreddit2] > battle?.scores[battle.subreddit1] ? 1.02 : 1,
+              boxShadow: battle?.scores[battle.subreddit2] > battle?.scores[battle.subreddit1] 
+                ? '0 4px 20px rgba(168, 85, 247, 0.5)' 
+                : '0 4px 6px rgba(0, 0, 0, 0.1)'
+            }}
+            transition={{ duration: 0.3 }}
           >
-            <h3 className="text-lg sm:text-xl font-bold">r/{battle?.subreddit2}</h3>
-            <p className="text-2xl sm:text-3xl font-bold">{battle?.scores[battle?.subreddit2]} points</p>
-            <div className="mt-2 space-y-1 text-xs sm:text-sm">
-              <p className="flex items-center gap-2">
-                <Users size={16} />
-                {battle?.participants[battle?.subreddit2]?.length || 0} players
-              </p>
-              {teamStats[battle?.subreddit2] && (
-                <>
-                  <p>Words Found: {teamStats[battle?.subreddit2].wordCount}</p>
-                  <p className="truncate">
-                    Longest Word: {teamStats[battle?.subreddit2].longestWord}
-                  </p>
-                  <p>Power-ups: {teamStats[battle?.subreddit2].powerUpsUsed}</p>
-                </>
-              )}
+            <div className="p-6 text-white">
+              <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                <MessageSquare className="w-6 h-6" />
+                r/{battle?.subreddit2}
+              </h3>
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-white/10 rounded-lg">
+                    <Trophy className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="text-3xl font-bold">{battle?.scores[battle?.subreddit2]}</div>
+                    <div className="text-sm text-purple-200">points</div>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  {teamStats[battle?.subreddit2] && (
+                    <>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-purple-200">Words Found</span>
+                        <span className="font-bold">{teamStats[battle?.subreddit2].wordCount}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-purple-200">Longest Word</span>
+                        <span className="font-bold truncate ml-2">{teamStats[battle?.subreddit2].longestWord}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-purple-200">Power-ups Used</span>
+                        <span className="font-bold">{teamStats[battle?.subreddit2].powerUpsUsed}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-purple-200">Players</span>
+                        <span className="font-bold">{battle?.participants[battle?.subreddit2]?.length || 0}</span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="px-6 py-4 bg-gradient-to-br from-purple-600/50 to-pink-700/50 backdrop-blur-sm">
+              <div className="text-sm text-purple-100">
+                Team Progress
+                <div className="mt-2 h-2.5 bg-white/10 rounded-full overflow-hidden">
+                  <motion.div 
+                    className="h-full bg-gradient-to-r from-purple-300 to-pink-300 rounded-full"
+                    initial={{ width: 0 }}
+                    animate={{ 
+                      width: `${Math.min(100, (battle?.scores[battle.subreddit2] / 1000) * 100)}%` 
+                    }}
+                    transition={{ duration: 0.5, ease: "easeOut" }}
+                  />
+                </div>
+              </div>
             </div>
           </motion.div>
         </div>

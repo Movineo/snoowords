@@ -1,38 +1,66 @@
-import React, { useEffect, useState } from 'react';
-import { Trophy, Medal, Book, Zap, Crown, Star } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
 import { useGameStore } from '../store/gameStore';
-import { LeaderboardEntry } from '../types/game';
+import { LeaderboardEntry, Word } from '../types/game';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Book, Trophy, Crown, Medal, Star, Zap } from 'lucide-react';
 
 export const Leaderboard: React.FC = () => {
-  const { score, redditUser, leaderboard, fetchLeaderboard } = useGameStore();
+  const { score, redditUser, leaderboard, fetchLeaderboard, status, words } = useGameStore(state => ({
+    score: state.score,
+    redditUser: state.redditUser,
+    leaderboard: state.leaderboard,
+    fetchLeaderboard: state.fetchLeaderboard,
+    status: state.status,
+    words: state.words as Word[]
+  }));
 
+  // Fetch leaderboard on mount and when game ends
   useEffect(() => {
-    fetchLeaderboard();
-  }, [fetchLeaderboard]);
+    const loadLeaderboard = async () => {
+      try {
+        await fetchLeaderboard();
+      } catch (error) {
+        console.error('Failed to fetch leaderboard:', error);
+      }
+    };
+    
+    loadLeaderboard();
+    
+    // Refresh more frequently during and after game
+    const interval = setInterval(loadLeaderboard, status === 'ended' ? 5000 : 15000);
+    
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [fetchLeaderboard, status, score]);
 
   // Add current player's score if it would make it to the top 10
   const getEnhancedLeaderboard = (entries: LeaderboardEntry[]) => {
     const allEntries = [...entries];
     const playerName = redditUser?.name || 'Anonymous';
     
-    if (score > 0 && !entries.some(entry => 
-      entry.player_name === playerName && entry.score === score
+    // If we have a score and it's not already in the leaderboard
+    if (score > 0 && !allEntries.some(entry => 
+      entry.player_name === playerName && 
+      entry.score === score &&
+      new Date(entry.created_at).toDateString() === new Date().toDateString()
     )) {
       const currentPlayerEntry: LeaderboardEntry = {
         id: `temp-${Date.now()}`,
         player_name: playerName,
         score,
         is_reddit_user: redditUser?.isAuthenticated || false,
-        words: [],
+        words: words.map(w => w.word),
         created_at: new Date().toISOString()
       };
       
       allEntries.push(currentPlayerEntry);
-      allEntries.sort((a, b) => b.score - a.score);
-      if (allEntries.length > 10) allEntries.pop();
     }
-    return allEntries;
+    
+    // Sort by score and get top 10
+    return allEntries
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 10);
   };
 
   const getRankIcon = (rank: number) => {
@@ -106,62 +134,53 @@ export const Leaderboard: React.FC = () => {
         </div>
       </div>
 
-      <div className="space-y-3">
-        <AnimatePresence>
-          {leaderboardData.map((entry, index) => (
-            <motion.div
-              key={entry.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.2, delay: index * 0.05 }}
-              className={`${getRankStyle(index)} rounded-lg border p-4 transition-all hover:shadow-md hover:bg-opacity-75`}
-            >
-              <div className="flex items-center gap-4">
-                <div className="flex items-center justify-center w-12 h-12 rounded-full bg-gradient-to-br from-purple-900/50 to-blue-900/50 border border-gray-700">
+      <div className="space-y-4">
+        <h2 className="text-xl font-bold mb-4">Today</h2>
+        <div className="space-y-2">
+          <AnimatePresence>
+            {leaderboardData.map((entry, index) => (
+              <motion.div
+                key={entry.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ delay: index * 0.1 }}
+                className={`flex items-center justify-between p-4 rounded-lg ${getRankStyle(index)}`}
+              >
+                <div className="flex items-center space-x-4">
                   {getRankIcon(index)}
-                </div>
-                
-                <div className="flex-1 flex items-center gap-4">
-                  <div className="flex-shrink-0">
-                    <img
-                      src={entry.avatar_url || `https://api.dicebear.com/6.x/bottts/svg?seed=${entry.player_name}`}
-                      alt={`${entry.player_name}'s avatar`}
-                      className="h-12 w-12 rounded-full border-2 border-gray-700 shadow-sm"
-                    />
-                  </div>
-                  
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-lg font-semibold truncate text-gray-100">
-                        {entry.player_name}
-                      </p>
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <span className="font-semibold">{entry.player_name}</span>
                       {entry.is_reddit_user && (
-                        <img
-                          src="/reddit-icon.svg"
-                          alt="Reddit User"
-                          className="w-5 h-5"
-                        />
+                        <img src="/reddit-icon.png" alt="Reddit User" className="w-4 h-4" />
                       )}
                     </div>
-                    <p className="text-sm text-gray-400 truncate">
-                      {entry.words?.length || 0} words • {entry.karma || 0} karma
-                    </p>
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
-                    {category === 'points' && <Trophy className="w-5 h-5 text-yellow-500" />}
-                    {category === 'words' && <Book className="w-5 h-5 text-blue-400" />}
-                    {category === 'powerUps' && <Zap className="w-5 h-5 text-purple-400" />}
-                    <span className="text-lg font-bold text-gray-100">
-                      {formatValue(entry, category)}
-                    </span>
+                    <div className="text-sm opacity-80">
+                      <span className="flex items-center gap-2">
+                        <Book className="w-4 h-4" /> {formatValue(entry, 'words')} words
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </motion.div>
-          ))}
-        </AnimatePresence>
+                <div className="flex items-center gap-3">
+                  <div className="flex flex-col items-end">
+                    <div className="flex items-center gap-2">
+                      <Trophy className="w-5 h-5 text-yellow-500" />
+                      <span className="text-xl font-bold">{formatValue(entry, 'score')} pts</span>
+                    </div>
+                    {entry['karma'] !== undefined && Number(entry['karma']) > 0 && (
+                      <div className="flex items-center gap-2 text-sm opacity-80">
+                        <Zap className="w-4 h-4 text-purple-400" />
+                        {formatValue(entry, 'karma')} karma
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </div>
       </div>
     </div>
   );
@@ -169,9 +188,12 @@ export const Leaderboard: React.FC = () => {
 
 const formatValue = (entry: LeaderboardEntry, key: string): string => {
   const value = entry[key];
-  if (value === undefined) return '-';
+  if (value === undefined) return '0';
   if (typeof value === 'number') {
     return value.toLocaleString();
+  }
+  if (Array.isArray(value)) {
+    return value.length.toString();
   }
   return String(value);
 };

@@ -174,6 +174,74 @@ interface GameActions {
   updateMultiplayerState: (state: MultiplayerGameState) => void;
   addOpponentWord: (word: string, player: string) => void;
   playWordFound: (word: string) => void;
+}interface GameActions {
+  setPlayerName: (name: string) => void;
+  addWord: (word: string) => void;
+  activatePowerUp: (powerUp: keyof IGameState['powerUps'], word?: string) => void;
+  deactivatePowerUp: (powerUp: keyof IGameState['powerUps']) => void;
+  updateKarma: (amount: number) => void;
+  incrementKarma: (amount: number) => void;
+  checkAchievements: () => void;
+  toggleAchievements: () => void;
+  startGame: () => void;
+  pauseGame: () => void;
+  endGame: () => void;
+  updateTime: (delta: number) => void;
+  resetGame: () => void;
+  tick: () => void;
+  setCurrentWord: (word: string) => void;
+  addLetter: (letter: string, index: number) => void;
+  removeLetter: (index: number) => void;
+  clearWord: () => void;
+  toggleRules: () => void;
+  toggleLeaderboard: () => void;
+  toggleChallenges: () => void;
+  togglePowerUps: () => void;
+  toggleBattles: () => void;
+  setRedditUser: (user: RedditUser | null) => void;
+  setIsAuthenticated: (isAuthenticated: boolean) => void;
+  resetGameState: () => void;
+  setActiveGame: (game: MultiplayerGameState | null) => void;
+  setActiveBattle: (battle: SubredditBattle | null) => void;
+  toggleSubredditPacks: () => void;
+  toggleCommunityPuzzles: () => void;
+  setSelectedCommunityPuzzle: (puzzle: CommunityPuzzle | null) => void;
+  setSelectedWordPack: (pack: SubredditPack | null) => void;
+  setMultiplayerState: (state: MultiplayerGameState | null) => void;
+  updateConnectedPlayers: (players: ConnectedPlayer[]) => void;
+  setCurrentBattle: (battle: SubredditBattle | null) => void;
+  setSpectatingBattle: (battle: SubredditBattle | null) => void;
+  addLiveAction: (action: LiveAction) => void;
+  clearLiveActions: () => void;
+  updateAwardEffects: (effects: Partial<AwardEffects>) => void;
+  updateDailyStreak: () => void;
+  setDailyChallenge: (challenge: Challenge | null) => void;
+  setWeeklyChallenge: (challenge: Challenge | null) => void;
+  setActiveChallenges: (challenges: Challenge[]) => void;
+  setCommunityChallenge: (challenge: CommunityChallenge | null) => void;
+  updateLeaderboard: (entries: { daily: LeaderboardEntry[]; allTime: LeaderboardEntry[] }) => void;
+  incrementCombo: () => void;
+  resetCombo: () => void;
+  setGameStartTime: (time: Date | null) => void;
+  setFinalScore: (score: number | null) => void;
+  setGameMode: (mode: GameMode | null) => void;
+  checkMilestones: () => void;
+  startCommunityChallenge: () => void;
+  submitChallengeScore: (score: number) => Promise<void>;
+  setCurrentChallenge: (challenge: Challenge | CommunityChallenge | null) => void;
+  fetchLeaderboard: () => Promise<void>;
+  selectLetter: (index: number) => void;
+  clearSelection: () => void;
+  submitWord: () => Promise<boolean>;
+  applyGameEffect: (effect: AwardEffect) => void;
+  applyBattleEffect: (effect: AwardEffect) => void;
+  toggleVoice: () => void;
+  setShowSubredditPacks: (show: boolean) => void;
+  setShowCommunityPuzzles: (show: boolean) => void;
+  setConnectedPlayers: (players: ConnectedPlayer[]) => void;
+  updateMultiplayerState: (state: MultiplayerGameState) => void;
+  addOpponentWord: (word: string, player: string) => void;
+  playWordFound: (word: string) => void;
 }
 
 interface Store extends IGameState, GameActions {
@@ -631,6 +699,7 @@ const useGameStore = create<Store>()(
         });
       },
 
+      // src/store/gameStore.ts
       fetchLeaderboard: async () => {
         setState((state) => ({
           leaderboard: {
@@ -639,37 +708,51 @@ const useGameStore = create<Store>()(
             error: null
           }
         }));
-
+      
         try {
-          const oneDayAgo = new Date();
-          oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+          // Get today's date at midnight in UTC
+          const today = new Date();
+          today.setUTCHours(0, 0, 0, 0);
           
+          // Fetch daily scores
           const { data: dailyData, error: dailyError } = await supabase
             .from('leaderboard')
             .select('*')
-            .gte('created_at', oneDayAgo.toISOString())
+            .gte('created_at', today.toISOString())
             .order('score', { ascending: false })
             .limit(10);
-
+      
           if (dailyError) throw dailyError;
-
+      
+          // Fetch all-time scores
           const { data: allTimeData, error: allTimeError } = await supabase
             .from('leaderboard')
             .select('*')
             .order('score', { ascending: false })
             .limit(10);
-
+      
           if (allTimeError) throw allTimeError;
-
+      
+          // Process and update the leaderboard state
           setState((state) => ({
             leaderboard: {
               ...state.leaderboard,
-              daily: dailyData || [],
-              allTime: allTimeData || [],
+              daily: dailyData?.map(entry => ({
+                ...entry,
+                created_at: new Date(entry.created_at).toISOString()
+              })) || [],
+              allTime: allTimeData?.map(entry => ({
+                ...entry,
+                created_at: new Date(entry.created_at).toISOString()
+              })) || [],
               loading: false,
               error: null
             }
           }));
+      
+          // Log the fetched data for debugging
+          console.log('Daily Leaderboard:', dailyData);
+          console.log('All-time Leaderboard:', allTimeData);
         } catch (error) {
           console.error('Error fetching leaderboard:', error);
           setState((state) => ({
@@ -725,13 +808,81 @@ const useGameStore = create<Store>()(
         setState({ status: 'paused' });
       },
       endGame: () => {
-        const { score } = getState();
+        const { score, words, timeLeft, redditUser } = getState();
         setState({ 
-          status: 'ended',
-          finalScore: score
+            status: 'ended',
+            finalScore: score
         });
+        
+        // Only submit score if there are words found
+        if (words.length > 0) {
+            // Submit score to leaderboard
+            const playerName = redditUser?.name || 'Anonymous';
+            const timestamp = new Date().toISOString();
+            
+            // Create the leaderboard entry
+            const newEntry = {
+                id: `temp-${Date.now()}`,
+                player_name: playerName,
+                score,
+                is_reddit_user: redditUser?.isAuthenticated || false,
+                words: words.map(w => w.word),
+                created_at: timestamp
+            };
+    
+            // Update local leaderboard immediately
+            setState(state => {
+                const updatedDaily = [...state.leaderboard.daily]
+                    .filter(entry => 
+                        // Remove any previous entries from the same player today
+                        !(entry.player_name === playerName && 
+                          new Date(entry.created_at).toDateString() === new Date().toDateString())
+                    )
+                    .concat([newEntry])
+                    .sort((a, b) => b.score - a.score)
+                    .slice(0, 10); // Keep only top 10
+                
+                return {
+                    leaderboard: {
+                        ...state.leaderboard,
+                        daily: updatedDaily
+                    }
+                };
+            });
+            
+            // Submit score to backend
+            gameService.submitScore(playerName, {
+                score,
+                words: words.map(w => w.word),
+                timeLeft,
+                timestamp,
+                gameMode: {
+                    id: 'classic',
+                    name: 'Classic',
+                    description: 'Classic word-finding game mode',
+                    duration: 60,
+                    icon: 'clock',
+                    rules: {
+                        minWordLength: 3,
+                        maxWordLength: 15,
+                        allowedCategories: ['all']
+                    }
+                },
+                duration: 60 - timeLeft
+            }).then(() => {
+                toast.success('Score submitted!');
+                // Fetch fresh leaderboard data after successful submission
+                setTimeout(() => getState().fetchLeaderboard(), 1000); // Small delay to ensure backend is updated
+            }).catch(error => {
+                console.error('Error submitting score:', error);
+                toast.error('Failed to submit score');
+            });
+        } else {
+            toast('No words found - score not submitted');
+        }
+        
         animationService.playGameOverSound();
-      },
+    },
       updateTime: (delta: number) => {
         setState((state) => ({ timeLeft: state.timeLeft + delta }));
       },
@@ -866,11 +1017,29 @@ const useGameStore = create<Store>()(
         setState({ currentChallenge: challenge });
       },
       updateLeaderboard: (entries: { daily: LeaderboardEntry[]; allTime: LeaderboardEntry[] }) => {
+        const { leaderboard } = getState();
+        
+        // Combine existing entries with new ones
+        const combinedDaily = [...(leaderboard?.daily || []), ...entries.daily];
+        const combinedAllTime = [...(leaderboard?.allTime || []), ...entries.allTime];
+        
+        // Remove duplicates and sort by score
+        const uniqueDaily = Array.from(new Map(
+          combinedDaily.map(entry => [entry.player_name + entry.score, entry])
+        ).values()).sort((a, b) => b.score - a.score);
+        
+        const uniqueAllTime = Array.from(new Map(
+          combinedAllTime.map(entry => [entry.player_name + entry.score, entry])
+        ).values()).sort((a, b) => b.score - a.score);
+        
+        // Keep only top 10 for each
+        const topDaily = uniqueDaily.slice(0, 10);
+        const topAllTime = uniqueAllTime.slice(0, 10);
+        
         setState({
           leaderboard: {
-            ...getState().leaderboard,
-            daily: entries.daily,
-            allTime: entries.allTime,
+            daily: topDaily,
+            allTime: topAllTime,
             loading: false,
             error: null
           }

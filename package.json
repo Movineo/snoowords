@@ -24,6 +24,8 @@
     "react-feather": "^2.0.10",
     "react-hot-toast": "^2.4.1",
     "react-router-dom": "^7.0.1",
+    "react-toastify": "^10.0.6",
+    "word-list": "^4.1.0",
     "zustand": "^4.5.2"
   },
   "devDependencies": {
